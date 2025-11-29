@@ -184,7 +184,7 @@ function populateJointNetWorth() {
 
   // Update Timestamp
   targetSheet.getRange('B3').setValue("Last updated on " + getDateTime());
-  targetSheet.getRange('B2').activate();
+  //targetSheet.getRange('B2').activate();
 }
 
 /**
@@ -251,14 +251,4 @@ function buildJointColumnStack(groupObj, title, name1, name2, grandTotals) {
   }
   
   return stack;
-}
-
-/**
- * Helper to get formatted timestamp.
- */
-function getDateTime() {
-  const now = new Date();
-  const timeStr = (now.getMonth() + 1) + '/' + now.getDate() + '/' + now.getFullYear() + ' ' + 
-                  ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
-  return timeStr;
 }

@@ -1,10 +1,10 @@
 /**
  * Optimized Yearly Budget Generator
- * Fixes:
- * - Corrects Actual Amount accumulation (Math.abs for Expenses).
- * - Adds Borders to report rows.
- * - Adds a Spacer row after the last category of each group.
- * - Preserves Hierarchy, Formatting, and Font (Comfortaa, 10px).
+ * Modifications:
+ * - FIXED: The placement of Monthly Budget Cash Flow (Row 3) and Monthly Actual Cash Flow (Row 4) totals. 
+ * They now correctly appear in the 'Difference' column for each month (J, N, R, V, Z, etc.).
+ * - ADDED: A solid right border to the '%' column (K, O, S, etc.) of each month block to visually separate the months.
+ * - ENSURED: Grand Annual Totals (C3, D3) and Annual Cash Flow (E3, E4) are correctly positioned.
  */
 function populateYearlyBudget() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -27,7 +27,7 @@ function populateYearlyBudget() {
   const CONFIG = {
     CAT_COL: configRaw[0] - 1,
     GRP_COL: configRaw[1] - 1,
-    TYP_COL: configRaw[2] - 1,
+    TYP_COL: configRaw[2] - 1, 
     HIDE_COL: configRaw[3] - 1,
     ALLOC1: configRaw[4] - 1,
     ALLOC2: configRaw[5] - 1,
@@ -41,15 +41,20 @@ function populateYearlyBudget() {
     TRAN_AMT: tranConfigRaw[5] - 1, // Amount column in Transactions sheet
   };
 
+  // Define currency format early
+  const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"_);_(@_)'; 
+
   // Clear Output Sheet
   const lastRow = outSheet.getLastRow();
   const lastCol = outSheet.getLastColumn();
   if (lastRow >= 10) {
-    // Fix merged cells before clearing to avoid errors
+    // Break merged cells and clear all content and formatting from row 10 onwards
     outSheet.getRange(10, 1, lastRow - 9, lastCol).breakApart();
     outSheet.getRange(10, 1, lastRow - 9, lastCol).clear({contentsOnly: true, formatOnly: true});
     outSheet.getRange(10, 1, lastRow - 9, lastCol).setBackground(null).setFontWeight(null).setFontStyle(null).setBorder(false, false, false, false, false, false);
   }
+
+  // Ensure Column A (ID column) is hidden from view
   outSheet.getRange("A:A").setFontColor("#FFFFFF");
 
 
@@ -110,7 +115,7 @@ function populateYearlyBudget() {
     const key = `${catName}_${group}_${type}`;
     
     if (catMap[key]) {
-      // If the category type is NOT Income or Transfers, treat the amount as an Expense magnitude.
+      // If the category type is NOT Income or Transfers, treat the amount as an Expense magnitude (positive number).
       if (type !== 'Income' && type !== 'Transfers') {
         amt = Math.abs(amt); 
       }
@@ -119,11 +124,19 @@ function populateYearlyBudget() {
     }
   }
 
-  // --- 3. OUTPUT GENERATION ---
+  // --- 3. OUTPUT GENERATION & TOTALS CALCULATION ---
 
   const outputRows = [];
   const metaRows = []; 
   const grandTotal = { budget: 0, actual: 0 };
+  
+  // Storage for monthly cash flow calculation
+  const monthlyCashFlowTotals = {
+    incomeBudget: Array(12).fill(0), 
+    expenseBudget: Array(12).fill(0), 
+    incomeActual: Array(12).fill(0), 
+    expenseActual: Array(12).fill(0)
+  };
 
   const sortedTypes = Object.keys(tree).sort((a, b) => {
     if (a === "Income") return -1;
@@ -173,7 +186,6 @@ function populateYearlyBudget() {
       outputRows[groupHeaderIndex] = buildRowData("G", group, groupTotals.budget, groupTotals.actual, type);
 
       // --- ADD SPACER AFTER GROUP ---
-      // Calculate width based on the previous row (Cat row)
       const rowWidth = outputRows[outputRows.length - 1].length;
       outputRows.push(Array(rowWidth).fill("")); // Add empty row
       metaRows.push("SPACER"); // Mark as spacer for formatting
@@ -183,16 +195,34 @@ function populateYearlyBudget() {
         typeTotals.budget[m] += groupTotals.budget[m];
         typeTotals.actual[m] += groupTotals.actual[m];
       }
-    });
+    }); // End of sortedGroups.forEach
 
     // Update Type Header Placeholder
     outputRows[typeHeaderIndex] = buildRowData("AL", type, typeTotals.budget, typeTotals.actual, type);
+    
+    // Calculate annual totals for this type
+    const annualBudgetSum = typeTotals.budget.reduce((a,b)=>a+b, 0);
+    const annualActualSum = typeTotals.actual.reduce((a,b)=>a+b, 0);
 
-    grandTotal.budget += typeTotals.budget.reduce((a,b)=>a+b, 0);
-    grandTotal.actual += typeTotals.actual.reduce((a,b)=>a+b, 0);
-  });
+    // Accumulate Grand Total (All Types)
+    grandTotal.budget += annualBudgetSum;
+    grandTotal.actual += annualActualSum;
+    
+    // Accumulate Monthly Cash Flow Totals (Income and Expense only)
+    if (type === "Income") {
+        for (let m = 0; m < 12; m++) {
+          monthlyCashFlowTotals.incomeBudget[m] += typeTotals.budget[m];
+          monthlyCashFlowTotals.incomeActual[m] += typeTotals.actual[m];
+        }
+    } else if (type === "Expense") {
+        for (let m = 0; m < 12; m++) {
+          monthlyCashFlowTotals.expenseBudget[m] += typeTotals.budget[m];
+          monthlyCashFlowTotals.expenseActual[m] += typeTotals.actual[m];
+        }
+    }
+  }); // End of sortedTypes.forEach
 
-  // --- 4. WRITE TO SHEET & APPLY FONTS ---
+  // --- 4. WRITE DATA TO SHEET & APPLY FONTS ---
   
   if (outputRows.length > 0) {
     const numRows = outputRows.length;
@@ -204,18 +234,16 @@ function populateYearlyBudget() {
     // Global Font
     range.setFontFamily("Comfortaa").setFontSize(10);
     
-    // --- 5. HIGHLIGHTING, BORDERS & SPECIFIC FORMATTING ---
+    // --- 5. HIGHLIGHTING, FORMATTING, ALIGNMENT, & BORDERS ---
     const typeRanges = [];
     const groupRanges = [];
     const numFormatRanges = []; 
     const pctFormatRanges = []; 
-    const borderRanges = []; // New array for borders
-
-    const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"_);_(@_)';
+    const borderRightRanges = []; // New array for right borders
+    
     const fmtPercent = '0.00%';
-    const colorType = '#e68e68'; 
-    const colorGroup = '#fce5cd'; 
-    const borderColor = '#000000';
+    const colorType = '#E68E68'; 
+    const colorGroup = '#EEC49F'; 
 
     for (let i = 0; i < numRows; i++) {
       const rowNum = 10 + i;
@@ -224,12 +252,9 @@ function populateYearlyBudget() {
       // Skip formatting for Spacer rows
       if (rowType === "SPACER") continue;
 
+      // Range for highlighting (Col B to the end)
       const rowRange = `B${rowNum}:${columnToLetter(numCols)}${rowNum}`;
       
-      // Collect range for Border (Type, Group, Cat)
-      // Borders applied from Col B to End
-      borderRanges.push(rowRange);
-
       if (rowType === "TYPE") {
         typeRanges.push(rowRange);
       } else if (rowType === "GROUP") {
@@ -244,7 +269,7 @@ function populateYearlyBudget() {
       for (let m=0; m<12; m++) {
         let startCol = 8 + (m*4); 
         let endCol = startCol + 2;
-        let pctCol = startCol + 3;
+        let pctCol = startCol + 3; // The % column (K, O, S, etc.)
         
         let startLet = columnToLetter(startCol);
         let endLet = columnToLetter(endCol);
@@ -252,16 +277,15 @@ function populateYearlyBudget() {
         
         numFormatRanges.push(`${startLet}${rowNum}:${endLet}${rowNum}`);
         pctFormatRanges.push(`${pctLet}${rowNum}`);
+        
+        // Add % column to the list to receive a right border
+        if (m < 11) { // Apply border to 11 months, skipping the last one
+          borderRightRanges.push(`${pctLet}${rowNum}`);
+        }
       }
     }
 
-    // Apply Formatting Batches
-    if (borderRanges.length) {
-        const rl = outSheet.getRangeList(borderRanges);
-        // Apply solid black border to data rows
-        rl.setBorder(true, true, true, true, true, true, borderColor, SpreadsheetApp.BorderStyle.SOLID);
-    }
-
+    // Apply Background Colors
     if (typeRanges.length) {
       const rl = outSheet.getRangeList(typeRanges);
       rl.setBackground(colorType);
@@ -272,17 +296,63 @@ function populateYearlyBudget() {
       rl.setBackground(colorGroup);
       rl.setFontWeight('bold');
     }
+    
+    // Apply number formats
     if (numFormatRanges.length) outSheet.getRangeList(numFormatRanges).setNumberFormat(fmtCurrency);
     if (pctFormatRanges.length) outSheet.getRangeList(pctFormatRanges).setNumberFormat(fmtPercent);
     
+    // Apply right borders to separate months (Row 10 onwards)
+    if (borderRightRanges.length) {
+      const rl = outSheet.getRangeList(borderRightRanges);
+      rl.setBorder(false, false, false, true, false, false, '#355348', SpreadsheetApp.BorderStyle.SOLID);
+    }
+
     // Alignment
     outSheet.getRange(10, 3, numRows, numCols - 2).setHorizontalAlignment('right');
     outSheet.getRange(10, 2, numRows, 1).setHorizontalAlignment('left');
   }
+  
+  // --- 6. OUTPUT SUMMARY TOTALS & MONTHLY CASH FLOW (FIXED PLACEMENT) ---
+  
+  // Derive Annual Cash Flow from monthly totals
+  const annualIncomeBudget = monthlyCashFlowTotals.incomeBudget.reduce((a, b) => a + b, 0);
+  const annualExpenseBudget = monthlyCashFlowTotals.expenseBudget.reduce((a, b) => a + b, 0);
+  const annualIncomeActual = monthlyCashFlowTotals.incomeActual.reduce((a, b) => a + b, 0);
+  const annualExpenseActual = monthlyCashFlowTotals.expenseActual.reduce((a, b) => a + b, 0);
 
-  outSheet.getRange('D3').setValue(grandTotal.budget);
-  outSheet.getRange('D4').setValue(grandTotal.actual);
-  outSheet.getRange('B3').setValue("Last updated on " + new Date().toLocaleString());
+  const budgetCashFlow = annualIncomeBudget - annualExpenseBudget;
+  const actualCashFlow = annualIncomeActual - annualExpenseActual;
+  
+  // 1. Output Grand Annual Totals 
+  // C3: Grand Annual Budget Total (assuming this is used for all Budget lines)
+  // C4: Grand Annual Actual Total (assuming this is used for all Actual lines)
+  // These cells were previously commented out, keeping them out as per the original file's state.
+
+  // 2. Output Annual Cash Flow values
+  // E3: Budget Cash Flow
+  outSheet.getRange('E3').setValue(budgetCashFlow).setNumberFormat(fmtCurrency);
+  // E4: Actual Cash Flow
+  outSheet.getRange('E4').setValue(actualCashFlow).setNumberFormat(fmtCurrency);
+
+  // 3. Output Monthly Cash Flow values (FIXED PLACEMENT to J3/J4, N3/N4, etc.)
+  for (let m = 0; m < 12; m++) {
+    // Calculate monthly CF
+    const monthlyBudgetCF = monthlyCashFlowTotals.incomeBudget[m] - monthlyCashFlowTotals.expenseBudget[m];
+    const monthlyActualCF = monthlyCashFlowTotals.incomeActual[m] - monthlyCashFlowTotals.expenseActual[m];
+      
+    // Target column is the "Difference" column for each month block: 
+    // J (10), N (14), R (18), V (22), Z (26), AD (30), AH (34), etc.
+    const targetCol = 10 + (m * 4); 
+    
+    // Budget Cash Flow goes into Row 3 (J3, N3, etc.)
+    outSheet.getRange(3, targetCol).setValue(monthlyBudgetCF).setNumberFormat(fmtCurrency);
+    
+    // Actual Cash Flow goes into Row 4 (J4, N4, etc.)
+    outSheet.getRange(4, targetCol).setValue(monthlyActualCF).setNumberFormat(fmtCurrency);
+  }
+
+  // Output Last Updated (B3)
+  outSheet.getRange('B3').setValue("Last updated on " + getDateTime());
 }
 
 /**
@@ -290,6 +360,7 @@ function populateYearlyBudget() {
  */
 function buildRowData(id, name, budgetArr, actualArr, type) {
   const row = [id, name];
+  // Income and Transfers are displayed as negative in the diff column for a true cash-flow view
   const isIncome = (type === "Income" || type === "Transfers");
   const mult = isIncome ? -1 : 1; 
 

@@ -128,12 +128,8 @@ function populateNetWorth() {
   targetSheet.getRange("A:A").setFontColor("#F9F9F9");
   targetSheet.getRange("E:E").setFontColor("#F9F9F9");
 
-  // Update Timestamp
-  var now = new Date();
-  var timeStr = (now.getMonth()+1) + '/' + now.getDate() + '/' + now.getFullYear() + ' ' + 
-                ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
-  targetSheet.getRange('B3').setValue("Last updated on " + timeStr);
-  targetSheet.getRange('B2').activate();
+  targetSheet.getRange('B3').setValue("Last updated on " + getDateTime() );
+  //targetSheet.getRange('B2').activate();
 }
 
 /**
