@@ -289,7 +289,7 @@ function populateMonthlyBudget() {
     const typeBg = '#e68e68'; 
     const groupBg = '#eec49f'; 
     const catBg = '#FFFFFF';   
-    const numFormat = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"_);_(@_)';
+    const numFormat = '_($* #,##0.00_);_($* (#,##0.00)_);_($* "-"_);_(@_)';
     const pctFormat = '0.00%';
     
     let rangeStart = 10;

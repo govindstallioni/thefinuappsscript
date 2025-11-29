@@ -519,7 +519,7 @@ function renderJointSheet(sheet, layout) {
 	const C_TYPE_BLOCK = '#e68e68'; // Warm Orange/Brown for Type Summary
 	const C_GRP_BLOCK = '#eec49f';  // Light Tan/Peach for Group Summary
 	const C_CAT_BLOCK = '#FFFFFF';      
-	const FMT_NUM = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"_);_(@_)';
+	const FMT_NUM = '_($* #,##0.00_);_($* (#,##0.00)_);_($* "-"_);_(@_)';
 	const FMT_PCT = '0.00%';
 	
 	// Border definitions for the new logic

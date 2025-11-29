@@ -121,7 +121,7 @@ function populateJointNetWorth() {
     writeRange.setValues(outputGrid);
     
     // Define format
-    const currencyFmt = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"_);_(@_)';
+    const currencyFmt = '_($* #,##0.00_);_($* (#,##0.00)_);_($* "-"_);_(@_)';
     const dateFmt = 'M/d/yyyy';
     
     // Apply Currency/Date Formatting to all amount columns (D, E, F, J, K, L) and date columns (C, I)

@@ -311,7 +311,7 @@ function populateJointYearlyBudget() {
     }
 
     // Batch Apply Formats
-    const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"_);_(@_)';
+    const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00)_);_($* "-"_);_(@_)';
     const fmtPercent = '0.00%';
     
     if (currencyRanges.length) outSheet.getRangeList(currencyRanges).setNumberFormat(fmtCurrency);
@@ -429,7 +429,7 @@ function populateJointYearlyBudget() {
   }
 
   // Apply Formatting to all Summary cells (D3:F4 and monthly)
-  const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"_);_(@_)';
+  const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00)_);_($* "-"_);_(@_)';
   combinedSummaryRanges.setNumberFormat(fmtCurrency);
   combinedSummaryRanges.setFontWeight('bold');
 

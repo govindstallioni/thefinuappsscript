@@ -77,7 +77,7 @@ function populateNetWorth() {
     writeRange.setValues(outputGrid);
     
     // Apply Currency/Date Formatting
-    var currencyFmt = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"_);_(@_)';
+    var currencyFmt = '_($* #,##0.00_);_($* (#,##0.00)_);_($* "-"_);_(@_)';
     var dateFmt = 'M/d/yyyy';
     targetSheet.getRange(startRow, 4, outputGrid.length, 1).setNumberFormat(currencyFmt); 
     targetSheet.getRange(startRow, 8, outputGrid.length, 1).setNumberFormat(currencyFmt); 

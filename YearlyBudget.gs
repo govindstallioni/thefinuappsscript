@@ -42,7 +42,7 @@ function populateYearlyBudget() {
   };
 
   // Define currency format early
-  const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00);_($* "-"_);_(@_)'; 
+  const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00)_);_($* "-"_);_(@_)'; 
 
   // Clear Output Sheet
   const lastRow = outSheet.getLastRow();
