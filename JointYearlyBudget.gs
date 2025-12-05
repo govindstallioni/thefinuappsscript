@@ -50,6 +50,7 @@ function populateJointYearlyBudget() {
     TRAN_DATE_COL: tranConfigRaw[4] - 1, 
     TRAN_AMT_COL: tranConfigRaw[5] - 1, 
     TRAN_OWNER_COL: tranConfigRaw[6] - 1,
+    TRAN_ASSIGN_AMT_COL: tranConfigRaw[7] - 1,
     // Note: OWNER_MAP is no longer strictly needed but kept for context.
     OWNER_MAP: { [String(NAME1).toLowerCase()]: 1, [String(NAME2).toLowerCase()]: 2 }
   };
@@ -129,6 +130,7 @@ function populateJointYearlyBudget() {
     
     if (catEntry) {
       let amt = Number(row[CONFIG.TRAN_AMT_COL]) || 0;
+      let assignAmt = Number(row[CONFIG.TRAN_ASSIGN_AMT_COL]) || 0;
       // Expense amounts are often negative in transaction sheets, but we track them as positive expenses here.
       if (type !== 'Income' && type !== 'Transfers') amt = Math.abs(amt); 
       
@@ -150,10 +152,12 @@ function populateJointYearlyBudget() {
       } else if (ownerRaw === name2Lower) {
           // If Owner is Name 2: 100% to Name 2's Actual
           amt2 = amt;
-      } else if (ownerRaw === 'joint' || ownerRaw === 'household' || !ownerRaw) {
+      } else if (ownerRaw === 'joint' || ownerRaw === 'household' ) {
           // If Owner is Joint, Household, or blank: Split by category allocation ratio
-          amt1 = amt * categoryAlloc1;
-          amt2 = amt * categoryAlloc2;
+          //amt1 = amt * categoryAlloc1;
+          //amt2 = amt * categoryAlloc2;
+          amt1 = assignAmt;
+          amt2 = assignAmt;
       } else {
           // Fallback for unrecognized owner (e.g., a third party, or misspelled name) - fall back to 50/50
           amt1 = amt / 2;

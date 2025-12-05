@@ -341,9 +341,8 @@ function getJointTransactionData(config, categoryRatioMap) {
 			const totalAmt = Math.abs(rawAmt); // Absolute value of the transaction amount
 
 			// --- NEW LOGIC: Household/Joint split by Category Ratios ---
-			if (owner === 'Household' || owner === 'Joint') {
+			/*if (owner === 'Household' || owner === 'Joint') {
 				const ratios = categoryRatioMap[cat];
-				
 				if (ratios) {
 					// Calculate split based on category ratios using the main AMOUNT, as requested.
 					// Note: Ratios are normalized (sum to 1) from getJointCategoryData.
@@ -355,9 +354,10 @@ function getJointTransactionData(config, categoryRatioMap) {
 					amtP1 = totalAmt / 2;
 					amtP2 = totalAmt / 2;
 				}
-			} 
+			}*/
+
 			// --- EXISTING LOGIC: Individual Owner uses Assigned Amount ---
-			else if (owner === name1) {
+			if (owner === name1) {
 				// Owner is Name1: Name1 takes the Assigned Amount
 				amtP1 = Math.abs(assignedAmt); 
 				amtP2 = 0; 
@@ -365,13 +365,15 @@ function getJointTransactionData(config, categoryRatioMap) {
 				// Owner is Name2: Name2 takes the Assigned Amount
 				amtP2 = Math.abs(assignedAmt);
 				amtP1 = 0;
-			} 
-			// --- EXISTING LOGIC: Other/Blank Owner splits main AMOUNT 50/50 ---
-			else {
-				// Owner is blank, or some other value: Split the *main* AMOUNT column 50/50.
-				amtP1 = totalAmt / 2;
-				amtP2 = totalAmt / 2;
-			}
+			} else if(owner === 'Household' || owner === 'Joint'){
+        // --- EXISTING LOGIC: Other/Blank Owner splits main AMOUNT 50/50 --- 
+        amtP1 = Math.abs(assignedAmt);
+        amtP2 = Math.abs(assignedAmt);
+			}else{
+        // Owner is blank, or some other value: Split the *main* AMOUNT column 50/50.
+        amtP1 = totalAmt / 2;
+        amtP2 = totalAmt / 2;
+      }
 
 			if (!actualMap[cat]) actualMap[cat] = { p1: 0, p2: 0 };
 			
