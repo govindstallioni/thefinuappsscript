@@ -1,0 +1,38 @@
+<? accounts.forEach(function(account) { ?>
+  <? if( account.status === true ) { ?>
+    <div class="bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+      <div class="px-3.5 py-3 flex items-center justify-between gap-2.5 px-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="min-w-0">
+            <div class="font-medium text-gray-900 leading-tight truncate">
+              <?= account?.name || 'Unknown' ?>
+            </div>
+            <div class="text-gray-600 leading-none mt-2">
+              <?= account.institution_name || '—' ?> • <?= account.mask || 'XXXX' ?> 
+            </div>
+          </div>
+        </div>
+        <? if(account.is_linked){ ?>
+          <small class="px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 shrink-0">Linked</small>
+        <? } else { ?>
+          <small class="px-1.5 py-0.5 rounded-full bg-red-100 text-red-800 shrink-0">Unlinked</small>
+        <? } ?>
+      </div>
+      <? if(account.is_linked){ ?>
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-t text-center py-2 px-2">
+          <button class="text-blue-600 hover:text-blue-800"
+                  onclick="viewAccountDetail('<?= account.account_id || '' ?>')">
+            Make Changes →
+          </button>
+        </div>
+      <? } else { ?>
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-t text-center py-2 px-2">
+          <button class="text-blue-600 hover:text-blue-800"
+                  onclick="viewAccountDetail('<?= account.account_id || '' ?>')">
+            Bring in Data →
+          </button>
+        </div>
+      <? } ?>
+    </div>
+  <? } ?>
+<? }); ?>

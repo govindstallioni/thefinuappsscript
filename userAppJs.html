@@ -1,0 +1,265 @@
+<script type="text/javascript">
+function showUserDashboard(){
+  google.script.run.withSuccessHandler(function(response){
+    loaderEle.classList.add('hidden');
+    mainAppEle.innerHTML = response;
+    showTab('accounts');
+  }).withFailureHandler(function(error){
+    loaderEle.classList.add('hidden');
+    mainAppEle.innerHTML = response;
+  }).showUserDashboardTemplate();
+}
+
+// Tab Navigation
+function showTab(tabId) {
+    // Hide all tabs
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('active', 'text-blue-600', 'border-b-2', 'border-blue-600');
+    btn.classList.add('text-gray-700');
+  });
+
+  // Show selected tab
+  document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+  const btn = document.getElementById(`btn-${tabId}`);
+  btn.classList.add('active', 'text-blue-600', 'border-b-2', 'border-blue-600');
+
+  // Special behavior: load accounts when Accounts tab is shown
+  if (tabId === 'accounts') {
+    loadConnectedAccounts();
+  }
+}
+
+
+// ── Load accounts from your API + render ──────────────────────
+function loadConnectedAccounts() {
+  const loader = document.getElementById('accounts-loader');
+  const list = document.getElementById('connected-account-list');
+  const empty = document.getElementById('empty-state');
+  const accountDetailElement = document.getElementById('account-detail');
+  const renameAccountElement = document.getElementById('rename-account');
+  // Reset UI
+  loader.classList.remove('hidden');
+  list.classList.add('hidden');
+  empty.classList.add('hidden');
+  accountDetailElement.classList.add('hidden');
+  renameAccountElement.classList.add('hidden');
+  list.innerHTML = '';
+  accountDetailElement.innerHTML = '';
+  renameAccountElement.innerHTML = '';
+
+  google.script.run.withSuccessHandler(response => {
+    if( response !== false ){
+      loader.classList.add('hidden');
+      list.innerHTML = response;
+      list.classList.remove('hidden');
+    }else{
+      loader.classList.add('hidden');
+      empty.classList.remove('hidden');
+    }
+  }).withFailureHandler(err => {
+      loader.innerHTML = `
+        <p class="text-red-600 py-8">
+          Sorry, couldn't load accounts<br>
+          <span class="text-sm">(${err.message || 'Network error'})</span>
+        </p>
+      `;
+  }).getConnectedPlaidAccountsTemplate();   // ← your server function
+}
+// Detail Page
+function viewAccountDetail(account_id) {
+  const loader = document.getElementById('accounts-loader');
+  const list = document.getElementById('connected-account-list');
+  const empty = document.getElementById('empty-state');
+  const detail = document.getElementById('account-detail');
+  // Reset UI
+  loader.classList.remove('hidden');
+  list.classList.add('hidden');
+  empty.classList.add('hidden');
+  list.innerHTML = '';
+  google.script.run.withSuccessHandler(response => {
+    loader.classList.add('hidden');
+    detail.innerHTML = response;
+    detail.classList.remove('hidden');
+  }).withFailureHandler(err => {
+      loader.innerHTML = `
+        <p class="text-red-600 py-8">
+          Sorry, couldn't load accounts<br>
+          <span class="text-sm">(${err.message || 'Network error'})</span>
+        </p>
+      `;
+  }).getAccountDetailsTemplate(account_id);   // ← your server function
+}
+
+function renameAccount( account_id, account_name ){
+  const loader = document.getElementById('accounts-loader');
+  const detail = document.getElementById('account-detail');
+  const renameAccount = document.getElementById('rename-account');
+  // Reset UI
+  loader.classList.remove('hidden');
+  detail.classList.add('hidden');
+  google.script.run.withSuccessHandler(response => {
+    loader.classList.add('hidden');
+    renameAccount.innerHTML = response;
+    renameAccount.classList.remove('hidden');
+  }).withFailureHandler(err => {
+      loader.innerHTML = `
+        <p class="text-red-600 py-8">
+          Sorry, couldn't load accounts<br>
+          <span class="text-sm">(${err.message || 'Network error'})</span>
+        </p>
+      `;
+  }).getRenameAccountTemplate( account_id, account_name );
+}
+
+function goBackAccountListCard(){
+  const loader = document.getElementById('accounts-loader');
+  const detail = document.getElementById('account-detail');
+  const empty = document.getElementById('empty-state');
+  const list = document.getElementById('connected-account-list');
+  // Reset UI
+  loader.classList.remove('hidden');
+  list.classList.add('hidden');
+  empty.classList.add('hidden');
+  detail.classList.add('hidden');
+  list.innerHTML = '';
+  detail.innerHTML = ''
+  google.script.run.withSuccessHandler(response => {
+    loader.classList.add('hidden');
+    list.innerHTML = response;
+    list.classList.remove('hidden');
+  }).withFailureHandler(err => {
+      loader.innerHTML = `
+        <p class="text-red-600 py-8">
+          Sorry, couldn't load accounts<br>
+          <span class="text-sm">(${err.message || 'Network error'})</span>
+        </p>
+      `;
+  }).getConnectedPlaidAccountsTemplate();
+}
+
+function cancelRename(){
+  const loader = document.getElementById('accounts-loader');
+  const detail = document.getElementById('account-detail');
+  const renameAccount = document.getElementById('rename-account');
+  // Reset UI
+  loader.classList.remove('hidden');
+  detail.classList.remove('hidden');
+  renameAccount.innerHTML = '';
+  renameAccount.classList.add('hidden');
+  loader.classList.add('hidden');
+}
+
+function saveRename( account_id, btnEle ){
+
+  let renameEle = btnEle.closest('#rename-account');
+  if (!renameEle) {
+    console.error("Cannot find parent container");
+    alert("Technical issue – please try again");
+    return;
+  }
+  const input = renameEle.querySelector('#newName');
+
+  if (!input) {
+    console.error("Cannot find input #newName in the container");
+    return;
+  }
+
+  const newName = input.value.trim();
+
+  if (!newName) {
+    alert("Please enter a new name");
+    input.focus();
+    return;
+  }
+
+  // Optional: disable button during request
+  btnEle.disabled = true;
+  btnEle.textContent = "Saving...";
+
+  google.script.run.withSuccessHandler((response) => {
+    if( response.status === true ){
+      renameEle.querySelector('.responsemessage').innerHTML = actionSuccessMessage(response.message);
+      renameEle.querySelector('.responsemessage').classList.remove("hidden");
+      setTimeout(() => {
+        viewAccountDetail(account_id);
+        renameEle.querySelector('.responsemessage').classList.add("hidden");
+        renameEle.querySelector('.responsemessage').innerHTML = '';
+        renameEle.innerHTML = '';
+        renameEle.classList.add("hidden");
+      }, 2000);
+    }else{
+      renameEle.querySelector('.responsemessage').innerHTML = actionFailureMessage(response.message);
+      renameEle.querySelector('.responsemessage').classList.remove("hidden");
+    }
+  }).withFailureHandler(err => {
+      alert("Failed: " + (err.message || "Unknown error"));
+      //btnEle.disabled = false;
+      btnEle.textContent = "Saved";
+  }).updateAccountName(account_id, newName);
+
+}
+
+// Backend Callbacks
+function linkNewAccount() {
+  google.script.run.linkNewAccount();
+}
+
+function removeAccount(account_id) {
+  if (confirm("If you remove the account, the data of the account will lost. please confirm")) {
+    google.script.run.withSuccessHandler(() => {
+      alert("Account removed successfully");
+      loadConnectedAccounts();
+    }).removeAccountFromList(account_id);
+  }
+}
+
+function runImport() {
+  const id = document.getElementById('detail-title').innerText;
+  google.script.run.withSuccessHandler(msg => alert(msg)).importTransactions(id);
+}
+
+function linkAccountToTemplate(account_id, btnEl){
+  btnEl.disabled = true;
+  btnEl.textContent = "Linking..";
+  btnEl.disabled = true;
+  google.script.run.withSuccessHandler(function(msg) {
+    // Start polling the status every 5 seconds
+    const interval = setInterval(function() {
+      google.script.run.withSuccessHandler(function(status) {
+        if (status === 'COMPLETED') {
+          btnEl.textContent = "Please wait..";
+          clearInterval(interval);
+          viewAccountDetail(account_id);
+        } else if (status.indexOf('ERROR') > -1) {
+          clearInterval(interval);
+          alert("Something went wrong: " + status);
+          viewAccountDetail(account_id);
+        }
+      }).checkTaskStatus();
+    }, 5000);
+  }).confirmLinkAccountToTemplate(account_id);
+}
+
+function unlinkAccountFromTemplate(account_id, btnEl){
+  btnEl.disabled = true;
+  btnEl.textContent = "Unlinking..";
+  btnEl.disabled = true;
+  google.script.run.withSuccessHandler(function(msg) {
+    // Start polling the status every 5 seconds
+    const interval = setInterval(function() {
+      google.script.run.withSuccessHandler(function(status) {
+        if (status === 'COMPLETED') {
+          btnEl.textContent = "Please wait..";
+          clearInterval(interval);
+          viewAccountDetail(account_id);
+        } else if (status.indexOf('ERROR') > -1) {
+          clearInterval(interval);
+          alert("Something went wrong: " + status);
+          viewAccountDetail(account_id);
+        }
+      }).checkTaskStatus();
+    }, 5000);
+  }).confirmUnlinkAccountFromTemplate(account_id);
+}
+</script>

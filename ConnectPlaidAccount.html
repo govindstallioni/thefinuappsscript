@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.2.1/flowbite.min.css" rel="stylesheet" />
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  <style>
+    body { font-family: "Comfortaa", sans-serif; background:#f9fafb; }
+    #loader { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; }
+    #loader-content {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      text-align: center;
+    }
+    .center-container {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 1rem;
+    }
+    h2 { font-size: 1.4rem; font-weight: 600; margin-bottom: 0.75rem; }
+    p { color: #4b5563; margin-bottom: 1.5rem; }
+  </style>
+</head>
+<body class="p-6">
+
+<div id="loader">
+  <div id="loader-content">
+    <div class="animate-spin w-12 h-12 mx-auto mb-4 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+    <p>Connecting with Plaid...</p>
+  </div>
+</div>
+
+<div class="center-container" id="plaid-content">
+  <h2>Connect Your Bank Account</h2>
+  <p>Securely link your financial accounts with Plaid.<br>Start syncing transactions, balances and more.</p>
+</div>
+
+<script>
+function showloader(msg = "Connecting...") {
+  document.getElementById('loader').style.display = 'block';
+  document.querySelector('#loader p').textContent = msg;
+}
+
+function hideloader() {
+  document.getElementById('loader').style.display = 'none';
+}
+
+window.onload = function() {
+  showloader("Preparing Plaid Link...");
+  initPlaidApp();
+};
+
+function connectPlaidModalUI(link_token) {
+  //console.log("Link Token: "+ link_token);
+  const handler = Plaid.create({
+    token: link_token,
+    onSuccess: (public_token, metadata) => {
+      showloader("Finalizing connection...");
+      google.script.run.withSuccessHandler((response) => {
+        hideloader();
+        alert("Account(s) successfully connected!");
+        google.script.host.close();
+        google.script.run.showSidebar();
+      }).withFailureHandler(err => {
+        hideloader();
+        alert("Connection failed: " + (err.message || "Unknown error"));
+        google.script.host.close();
+      }).exchangePublicTokenForAccessToken(public_token, metadata);
+    },
+    onExit: (err, metadata) => {
+      hideloader();
+      if (err != null) {
+        console.warn("User exited with error:", err);
+      }
+      google.script.host.close();
+    },
+    onEvent: (eventName, metadata) => {
+      // You can log events for debugging
+      // console.log(eventName, metadata);
+    }
+  });
+
+  handler.open();
+}
+
+function initPlaidApp() {
+  google.script.run.withSuccessHandler(resp => {
+    console.log("response: "+ resp);
+    hideloader();
+    connectPlaidModalUI(resp.link_token);
+  }).withFailureHandler(err => {
+    hideloader();
+    alert("Cannot start Plaid. " + (err.message || ""));
+    google.script.host.close();
+  }).generatePlaidTokenLink();
+}
+</script>
+</body>
+</html>

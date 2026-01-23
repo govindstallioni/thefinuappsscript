@@ -1,0 +1,111 @@
+<div id="mainTab">
+  <!-- Tabs -->
+  <div class="flex border-b bg-white shadow-sm sticky top-0 z-10">
+    <button 
+      onclick="showTab('accounts')" 
+      id="btn-accounts" 
+      class="tab-btn flex-1 py-3.5 text-center font-medium text-gray-700 hover:text-blue-600 transition active">Accounts
+    </button>
+    <button 
+      onclick="showTab('settings')" 
+      id="btn-settings" 
+      class="tab-btn flex-1 py-3.5 text-center font-medium text-gray-700 hover:text-blue-600 transition">Settings
+    </button>
+    <button 
+      onclick="showTab('support')" 
+      id="btn-support"
+      class="tab-btn flex-1 py-3.5 text-center font-medium text-gray-700 hover:text-blue-600 transition">Support
+    </button>
+  </div>
+
+  <!-- Tab Contents -->
+  <div id="tab-accounts" class="py-4 px-0 tab-content">
+    <button onclick="linkNewAccount()"
+      class="w-full mb-2 py-2 px-2 border-2 border-dashed border-blue-400 text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition">+ Link New Account
+    </button>
+
+    <!-- Loader -->
+    <div id="accounts-loader" class="text-center py-12">
+      <div class="animate-spin w-10 h-10 mx-auto mb-4 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+      <p class="text-gray-600">Loading connected accounts...</p>
+    </div>
+
+    <!-- Accounts list -->
+    <div id="connected-account-list" class="grid gap-2 sm:grid-cols-2 hidden"></div>
+
+    <!-- Empty state -->
+    <div id="empty-state" class="hidden text-center py-16 text-gray-600">
+      <p class="mt-4 mb-4">No connected bank accounts yet</p>
+      <button 
+        onclick="linkNewAccount()"
+        class="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition">
+        Connect Your First Account
+      </button>
+    </div>
+    <!-- Account Details -->
+    <div id="account-detail" class="hidden"></div>
+    <!-- Rename Account -->
+    <div id="rename-account" class="hidden"></div>
+
+  </div>
+
+  <div id="tab-settings" class="py-4 px-0 tab-content hidden">
+    <!-- Your settings content here -->
+    <p class="text-gray-600">Settings will be available soon...</p>
+  </div>
+
+  <div id="tab-support" class="py-4 px-0 tab-content hidden">
+    <!-- FAQ Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow mb-2">
+      <div class="p-5">
+        <h3 class="font-semibold text-gray-900 mb-2">FAQ</h3>
+        <p class="text-gray-600 leading-relaxed">
+          FAQs within ThefinU provide quick and clear answers to common questions, helping users navigate the platform and better understand its features and services.
+        </p>
+      </div>
+      <div class="px-5 py-4 bg-gray-50 border-t text-center">
+        <a href="http://www.thefinu.com/faqs" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="inline-block px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition shadow-sm">View FAQs</a>
+      </div>
+    </div>
+
+    <!-- Suggest a Feature Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow mb-2">
+      <div class="p-5">
+        <h3 class="font-semibold text-gray-900 mb-2">Suggest a Feature</h3>
+        <p class="text-gray-600 leading-relaxed">
+          The 'Suggest a Feature' option in ThefinU allows users to share ideas and recommendations for new features, helping us improve the platform based on your feedback.
+        </p>
+      </div>
+      <div class="px-5 py-4 bg-gray-50 border-t text-center">
+        <a href="http://www.thefinu.com/contactus-requestafeature" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="inline-block px-6 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition shadow-sm">
+          Suggest a Feature
+        </a>
+      </div>
+    </div>
+
+    <!-- Contact Us Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+      <div class="p-5">
+        <h3 class="font-semibold text-gray-900 mb-2">Contact Us</h3>
+        <p class="text-gray-600 leading-relaxed">
+          ThefinU enables users to easily reach out for support, ask questions, or provide feedback directly to our team.
+        </p>
+      </div>
+      <div class="px-5 py-4 bg-gray-50 border-t text-center">
+        <a href="http://www.thefinu.com/contactus-requestafeature" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="inline-block px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm">
+          Contact Us
+        </a>
+      </div>
+    </div>
+  </div>
+  
+</div>

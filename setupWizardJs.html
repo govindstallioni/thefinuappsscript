@@ -1,0 +1,193 @@
+<script type="text/javascript">
+
+const paymentProcessingTime = 30;
+let countdownInterval;
+let remainingSeconds = paymentProcessingTime; // 3 minutes
+
+const setupWizardEle = document.getElementById('setup-wizard');
+
+function showSetupWizard() {
+  google.script.run.withSuccessHandler(function(response){
+    loaderEle.classList.add('hidden');
+    mainAppEle.innerHTML = response;
+  }).withFailureHandler(function(error){
+    loaderEle.classList.add('hidden');
+    mainAppEle.innerHTML = response;
+  }).showSetupWizardTemplate();
+}
+
+// Step Navigation
+function handleStepStartFreeTrial(btnEl) {
+  startStripeCheckOutProcess(btnEl);
+}
+
+function handleTryAgainFreeTrial(btnEl){
+  resetPaymentProcessingTime();
+  startStripeCheckOutProcess(btnEl);
+}
+
+function resetPaymentProcessingTime(){
+  remainingSeconds = paymentProcessingTime;
+}
+
+function startStripeCheckOutProcess(btnEle){
+  // 1. Start Button Event
+  buttonEventStart(btnEle, "Please wait..");     
+  // 2. Start countdown
+  startSubscribeCountdown(btnEle);
+  // 3. Open Stripe Checkout
+  google.script.run.withSuccessHandler(function(url) {
+    window.open(url, '_blank');
+  }).withFailureHandler(function(err) {
+    buttonEventEnd(btnEle, "Start Free Trial");
+    alert(err);
+  }).createStripeSession();
+}
+
+function checkSubscriptionStatus(btnEle) {
+  const currentStepEle = setupWizardEle.querySelector('#step-2');
+  buttonEventStart(btnEle, "Please wait..");
+  google.script.run.withSuccessHandler(function(response){
+    appNotificationEle.innerHTML = '';
+    currentStepEle.classList.add('hidden');
+    appNotificationEle.innerHTML = response;
+    appNotificationEle.classList.remove('hidden');
+    buttonEventEnd(btnEle, "Try Again");
+  }).withFailureHandler(function(){
+    appNotificationEle.innerHTML = '';
+    currentStepEle.classList.add('hidden');
+    appNotificationEle.innerHTML = response;
+    appNotificationEle.classList.remove('hidden');
+    buttonEventEnd(btnEle, "Try Again");
+  }).checkUserSubscription();
+}
+
+function startSubscribeCountdown(btn) {
+  updateButtonText(btn);
+  countdownInterval = setInterval(() => {
+    remainingSeconds--;
+    updateButtonText(btn);
+    if (remainingSeconds <= 0) {
+      clearInterval(countdownInterval);
+      checkSubscriptionStatus(btn);
+    }
+  }, 1000);
+}
+
+function updateButtonText(btn) {
+  const min = Math.floor(remainingSeconds / 60);
+  const sec = remainingSeconds % 60;
+  btn.querySelector('.btn-text').innerText = `Waiting (${min}:${sec.toString().padStart(2, '0')})`;
+}
+
+function nextStep(n){
+  appNotificationEle.innerHTML = '';
+  document.querySelectorAll('#setup-wizard > div').forEach(div => div.classList.add('hidden'));
+  document.getElementById('step-' + n).classList.remove('hidden');
+}
+
+function launchApp(btnEl) {
+  buttonEventStart(btnEl, "Launching..");
+  google.script.run.showSidebar();
+}
+
+function handleStepInstallTemplate(btnEle){
+  const stepEl = btnEle.closest('[id^="step-"]');
+  buttonEventStart(btnEle, "Installing");
+  google.script.run.withSuccessHandler(function(response){
+    if( response.status === true ){
+      btnEle.classList.add('hidden');
+      showStepBlockMessageElement({
+        stepEle: stepEl, 
+        message: response.message, 
+        status: 'success'
+      });
+      showNextStepButtonElement(stepEl, 4);
+    }else{
+      showStepBlockMessageElement({
+        stepEle: stepEl, 
+        message: response.message, 
+        status: 'failed'
+      });
+      buttonEventEnd(btnEle, "Install Template");
+    }
+  }).withFailureHandler(function(error){
+    showStepBlockMessageElement({
+      stepEle: stepEl, 
+      message: error.message, 
+      status: 'failed'
+    });
+    buttonEventEnd(btnEle, "Install Template");
+  }).installTemplateInitialSetup();
+}
+
+function handleStepSaveConfiguration(btnEle){
+  const stepEl = btnEle.closest('[id^="step-"]');
+  if (!stepEl) return;
+  const autoSyncCheckbox = stepEl.querySelector('#autosync');
+  const isAutoSyncEnabled = autoSyncCheckbox.checked;
+  buttonEventStart(btnEle, "Saving..");
+  google.script.run.withSuccessHandler((response) => {
+    if( response.status === true ){
+      btnEle.classList.add('hidden');
+      showStepBlockMessageElement({
+        stepEle: stepEl, 
+        message: response.message, 
+        status: 'success'
+      });
+      showNextStepButtonElement(stepEl, 5);
+    }else{
+      showStepBlockMessageElement({
+        stepEle: stepEl, 
+        message: response.message, 
+        status: 'failed'
+      });
+      buttonEventEnd(btnEle, "Save Configuration");
+    }
+  }).withFailureHandler((error) => {
+    showStepBlockMessageElement({
+      stepEle: stepEl, 
+      message: error.message, 
+      status: 'failed'
+    });
+    buttonEventEnd(btnEle, "Save Configuration");
+  }).saveConfiguration({
+      autoSync: isAutoSyncEnabled,
+      sheetEditInstant: true
+  });
+}
+
+function goToNextStep(btn, nextstep) {
+  const stepEl = btn.closest('[id^="step-"]');
+  const wizardEl = stepEl.closest('#setup-wizard');
+
+  stepEl.classList.add('hidden');
+
+  const nextStep = wizardEl.querySelector('#step-'+ nextstep);
+  if (nextStep) {
+    nextStep.classList.remove('hidden');
+  }
+}
+
+function showStepBlockMessageElement( data ){
+  if( data.status === 'success' ){
+    data.stepEle.querySelector('.step-messages').innerHTML = actionSuccessMessage(data.message);
+    data.stepEle.querySelector('.step-messages').classList.remove("hidden");
+  }else{
+    data.stepEle.querySelector('.step-messages').innerHTML = actionFailureMessage(data.message);
+    data.stepEle.querySelector('.step-messages').classList.remove("hidden");
+  }
+}
+
+function showNextStepButtonElement( stepEle, nextStep ){
+  if (stepEle.querySelector('.next-step-btn')) return;
+  const nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.innerText = 'Next';
+  nextBtn.className = 'next-step-btn w-full bg-blue-600 text-white py-2 rounded mt-4';
+  nextBtn.onclick = function () {
+    goToNextStep(nextBtn, nextStep);
+  };
+  stepEle.appendChild(nextBtn);
+}
+</script>
