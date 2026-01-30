@@ -56,3 +56,41 @@ function sortingAccountSheetByDate(){
     { column: SORT_DATE_COL, ascending: false } // newest first (optional)
   ]);
 }
+
+function updateAccountsSheet(oldAccount, newAccount) {
+  const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+  const normalize = v => v.toLowerCase().trim();
+
+  const maxRows = sheet.getMaxRows();
+  const colB = sheet.getRange(2, 2, maxRows - 1, 1).getValues();
+
+  let lastContentRow = 1;
+  let oldRowIndex = null;
+  let newExists = false;
+
+  colB.forEach((row, i) => {
+    if (row[0]) {
+      lastContentRow = i + 2;
+
+      const value = normalize(row[0]);
+      if (oldAccount && value === normalize(oldAccount)) {
+        oldRowIndex = i + 2;
+      }
+      if (newAccount && value === normalize(newAccount)) {
+        newExists = true;
+      }
+    }
+  });
+
+  // 🔁 Replace old account with new account
+  if (oldRowIndex && newAccount) {
+    sheet.getRange(oldRowIndex, 2).setValue(newAccount);
+    return;
+  }
+
+  // ➕ Add new account if missing
+  if (newAccount && !newExists) {
+    sheet.insertRowsAfter(lastContentRow, 1);
+    sheet.getRange(lastContentRow + 1, 2).setValue(newAccount);
+  }
+}

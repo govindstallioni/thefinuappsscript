@@ -2,7 +2,7 @@
   <div id="step-1">
     <h2 class="text-xl font-bold mb-4">Welcome to theFinU</h2>
     <p class="app-welcome-text mb-3"><?= message ?></p>
-    <button onclick="nextStep(3)" class="w-full bg-blue-600 text-white py-2 rounded">
+    <button onclick="nextStep(2)" class="cursor-pointer w-full theme-bg-primary text-white py-2 rounded">
       <div class="btn-loading-content">
         <span id="getstart-btn" class="btn-text">Get Started</span>
         <span id="getstart-btn-loader" class="btn-spinner hidden"></span>
@@ -13,7 +13,7 @@
     <h2 class="text-xl font-bold mb-4">Step 1: Free Trial</h2>
     <p class="mb-4">Start your 14-day premium trial today.</p>
     <div id="subscription-status" class="hidden"></div>
-    <button onclick="handleStepStartFreeTrial(this)" class="w-full bg-blue-600 text-white py-2 rounded">
+    <button onclick="handleStepStartFreeTrial(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2 rounded">
       <div class="btn-loading-content">
         <span id="trial-btn" class="btn-text">Start Free Trial</span>
         <span id="trial-btn-loader" class="btn-spinner hidden"></span>
@@ -24,7 +24,7 @@
   <div id="step-3" class="hidden">
     <h2 class="text-xl font-bold mb-4">Step 2: Template</h2>
     <p class="mb-4">Click below to install the finance template.</p>
-    <button onclick="handleStepInstallTemplate(this)" class="w-full bg-blue-600 text-white py-2 rounded">
+    <button onclick="handleStepInstallTemplate(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2 rounded">
       <div class="btn-loading-content">
         <span class="btn-text">Install Template</span>
         <span class="btn-spinner hidden"></span>
@@ -38,10 +38,7 @@
     <label class="flex items-center mb-4">
       <input type="checkbox" id="autosync" checked> <span class="ml-2">Activate Auto-Sync</span>
     </label>
-    <label class="flex items-center mb-4">
-      <input type="checkbox" id="sheetEditInstant" checked disabled> <span class="ml-2">Sheet Edit Instant</span>
-    </label>
-    <button onclick="handleStepSaveConfiguration(this)" class="w-full bg-blue-600 text-white py-2 rounded">
+    <button onclick="handleStepSaveConfiguration(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2 rounded">
       <div class="btn-loading-content">
         <span class="btn-text">Save Configuration</span>
         <span class="btn-spinner hidden"></span>
@@ -52,9 +49,9 @@
 
   <div id="step-5" class="hidden">
     <h2 class="text-xl font-bold mb-4">🎉Ready to launch</h2>
-    <h4 class="text-md font-bold mb-2">Your setup is complete!</h4>
+    <h4 class="text-xs font-bold mb-2">Your setup is complete!</h4>
     <p>Everything is configured and your add-on is now ready to use.</p>
-    <button onclick="launchApp(this)" class="w-full bg-blue-600 text-white py-2 rounded mt-2">
+    <button onclick="launchApp(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2 rounded mt-2">
       <div class="btn-loading-content">
         <span class="btn-text">Launch App</span>
         <span class="btn-spinner hidden"></span>

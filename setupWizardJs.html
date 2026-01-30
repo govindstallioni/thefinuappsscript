@@ -1,10 +1,12 @@
 <script type="text/javascript">
 
-const paymentProcessingTime = 30;
+const paymentProcessingTime = 90;
 let countdownInterval;
 let remainingSeconds = paymentProcessingTime; // 3 minutes
 
-const setupWizardEle = document.getElementById('setup-wizard');
+function getSetupWizardEle(){
+  return document.getElementById('setup-wizard');
+}
 
 function showSetupWizard() {
   google.script.run.withSuccessHandler(function(response){
@@ -36,8 +38,9 @@ function startStripeCheckOutProcess(btnEle){
   // 2. Start countdown
   startSubscribeCountdown(btnEle);
   // 3. Open Stripe Checkout
-  google.script.run.withSuccessHandler(function(url) {
-    window.open(url, '_blank');
+  google.script.run.withSuccessHandler(function(response) {
+    // create button element
+    window.open(response.checkoutUrl, '_blank');
   }).withFailureHandler(function(err) {
     buttonEventEnd(btnEle, "Start Free Trial");
     alert(err);
@@ -45,39 +48,59 @@ function startStripeCheckOutProcess(btnEle){
 }
 
 function checkSubscriptionStatus(btnEle) {
-  const currentStepEle = setupWizardEle.querySelector('#step-2');
+  const setupWizard = getSetupWizardEle();
+  const currentStepEle = setupWizard ? setupWizard.querySelector('#step-2') : document.querySelector('#step-2');
+  if (!currentStepEle) {
+    if (typeof countdownInterval !== 'undefined') clearInterval(countdownInterval);
+    console.warn('checkSubscriptionStatus: step-2 element not found');
+    if (btnEle) buttonEventEnd(btnEle, "Try Again");
+    return;
+  }
   buttonEventStart(btnEle, "Please wait..");
+  const appNotification = (typeof appNotificationEle !== 'undefined' && appNotificationEle) ? appNotificationEle : document.querySelector('#app-notification');
   google.script.run.withSuccessHandler(function(response){
-    appNotificationEle.innerHTML = '';
+    if (appNotification) {
+      appNotification.innerHTML = '';
+      appNotification.innerHTML = response;
+      appNotification.classList.remove('hidden');
+    }
     currentStepEle.classList.add('hidden');
-    appNotificationEle.innerHTML = response;
-    appNotificationEle.classList.remove('hidden');
-    buttonEventEnd(btnEle, "Try Again");
-  }).withFailureHandler(function(){
-    appNotificationEle.innerHTML = '';
+    if (btnEle) buttonEventEnd(btnEle, "Try Again");
+  }).withFailureHandler(function(error){
+    if (appNotification) {
+      appNotification.innerHTML = '';
+      appNotification.innerHTML = (error && error.message) ? error.message : 'An error occurred';
+      appNotification.classList.remove('hidden');
+    }
     currentStepEle.classList.add('hidden');
-    appNotificationEle.innerHTML = response;
-    appNotificationEle.classList.remove('hidden');
-    buttonEventEnd(btnEle, "Try Again");
+    if (btnEle) buttonEventEnd(btnEle, "Try Again");
   }).checkUserSubscription();
 }
 
 function startSubscribeCountdown(btn) {
+  // clear any existing interval first
+  if (typeof countdownInterval !== 'undefined' && countdownInterval) {
+    clearInterval(countdownInterval);
+  }
   updateButtonText(btn);
   countdownInterval = setInterval(() => {
     remainingSeconds--;
     updateButtonText(btn);
     if (remainingSeconds <= 0) {
       clearInterval(countdownInterval);
+      countdownInterval = null;
       checkSubscriptionStatus(btn);
     }
   }, 1000);
 }
 
 function updateButtonText(btn) {
+  if (!btn) return;
+  const textEl = btn.querySelector && btn.querySelector('.btn-text');
+  if (!textEl) return;
   const min = Math.floor(remainingSeconds / 60);
   const sec = remainingSeconds % 60;
-  btn.querySelector('.btn-text').innerText = `Waiting (${min}:${sec.toString().padStart(2, '0')})`;
+  textEl.innerText = `Waiting (${min}:${sec.toString().padStart(2, '0')})`;
 }
 
 function nextStep(n){
@@ -184,7 +207,7 @@ function showNextStepButtonElement( stepEle, nextStep ){
   const nextBtn = document.createElement('button');
   nextBtn.type = 'button';
   nextBtn.innerText = 'Next';
-  nextBtn.className = 'next-step-btn w-full bg-blue-600 text-white py-2 rounded mt-4';
+  nextBtn.className = 'next-step-btn cursor-pointer w-full theme-bg-primary text-white py-2 rounded mt-4';
   nextBtn.onclick = function () {
     goToNextStep(nextBtn, nextStep);
   };

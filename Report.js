@@ -16,6 +16,14 @@ function regenerateAllReports() {
 
   Logger.log("Starting full report regeneration...");
 
+  // Net Worth Reports
+  if (typeof populateNetWorth === 'function') {
+    populateNetWorth();
+  }
+  if (typeof populateJointNetWorth === 'function') {
+    populateJointNetWorth();
+  }
+  
   // Monthly Reports
   if (typeof populateMonthlyBudget === 'function') {
     populateMonthlyBudget();
@@ -31,14 +39,6 @@ function regenerateAllReports() {
   // This is the function we corrected earlier
   if (typeof populateJointYearlyBudget === 'function') {
     populateJointYearlyBudget();
-  }
-
-  // Net Worth Reports
-  if (typeof populateNetWorth === 'function') {
-    populateNetWorth();
-  }
-  if (typeof populateJointNetWorth === 'function') {
-    populateJointNetWorth();
   }
 
   Logger.log("Report regeneration complete.");
@@ -57,5 +57,85 @@ function confirmPopulateReportToSheets(){
   }catch(error){
     Logger.log( JSON.stringify("generate report error: "+ error) );
     return false;
+  }
+}
+
+
+function startGenerationOfMonthlyBudget(){
+  try{
+    SpreadsheetApp.getUi().alert('Monthly budget generation has started. Do not change anything until the process completes.');
+    populateMonthlyBudget();
+  }catch(error){
+    SpreadsheetApp.getUi().alert('Something went wrong while generating monthly budget. Please try again.');
+    Logger.log("Error in startGenerationOfMonthlyBudget: " + error.toString());
+  }finally{
+    SpreadsheetApp.getUi().alert('Monthly budget generated successfully.');
+  }
+}
+
+function startGenerationOfJointMonthlyBudget(){
+  try{
+    SpreadsheetApp.getUi().alert('Joint monthly budget generation has started. Do not change anything until the process completes.');
+    populateJointMonthlyBudget();
+  }catch(error){
+    SpreadsheetApp.getUi().alert('Something went wrong while generating joint monthly budget. Please try again.');
+    Logger.log("Error in startGenerationOfJointMonthlyBudget: " + error.toString());
+  }finally{
+    SpreadsheetApp.getUi().alert('Joint monthly budget generated successfully.');
+  }
+}
+
+function startGenerationOfYearlyBudget(){
+  try{
+    SpreadsheetApp.getUi().alert('Yearly budget generation has started. Do not change anything until the process completes.');
+    populateYearlyBudget();
+  }catch(error){
+    SpreadsheetApp.getUi().alert('Something went wrong while generating yearly budget. Please try again.');
+    Logger.log("Error in startGenerationOfYearlyBudget: " + error.toString());
+  }finally{
+    SpreadsheetApp.getUi().alert('Yearly budget generated successfully.');
+  }
+}
+
+function startGenerationOfJointYearlyBudget(){
+  try{
+    SpreadsheetApp.getUi().alert('Joint yearly budget generation has started. Do not change anything until the process completes.');
+    populateJointYearlyBudget();
+  }catch(error){
+    SpreadsheetApp.getUi().alert('Something went wrong while generating joint yearly budget. Please try again.');
+    Logger.log("Error in startGenerationOfJointYearlyBudget: " + error.toString());
+  }finally{
+    SpreadsheetApp.getUi().alert('Joint yearly budget generated successfully.');
+  }
+}
+
+function startReportGenerationTask(){
+  try{
+    regenerateAllReports();
+  }catch(error){
+    SpreadsheetApp.getUi().alert('Something went wrong while regenerating reports. Please try again.');
+    Logger.log("Error in startReportGenerationTask: " + error.toString());
+  }finally{
+    SpreadsheetApp.getUi().alert('Reports regenerated successfully.');
+  }
+}
+
+function generateFinancialReport(){
+  try{
+    SpreadsheetApp.getUi().alert('Financial report generation has started. Do not change anything until the process completes.');
+    regenerateAllReports();
+  }catch(error){
+    SpreadsheetApp.getUi().alert('Something went wrong while generating financial report. Please try again.');
+    Logger.log("Error in generateFinancialReport: " + error.toString());
+    return {
+      status: false,
+      message: error.toString()
+    };
+  }finally{
+    SpreadsheetApp.getUi().alert('Financial report generated successfully.');
+    return {
+      status: true,
+      message: 'Financial report generated successfully.'
+    };
   }
 }

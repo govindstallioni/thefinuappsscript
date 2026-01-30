@@ -168,11 +168,7 @@ function buildColumnStack(groupObj, title, grandTotal) {
     for (var k = 0; k < grpData.items.length; k++) {
       var item = grpData.items[k];
       
-      // 🛑 IMPROVEMENT 2: Add a break before the start of each Account Item 
-      // (Only if it's not the first item, to prevent a double break after the Group Header)
-      if (k > 0) {
-          stack.push(["", "", "", ""]);
-      }
+      // No break between account items: items should appear consecutively
       
       // Item Row (Marker "C")
       stack.push(["C", item.name, item.date, item.amt]);

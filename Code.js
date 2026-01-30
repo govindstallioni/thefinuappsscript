@@ -43,6 +43,7 @@ function onOpen(e) {
   SpreadsheetApp.getUi()
     .createAddonMenu()
     .addItem('Open', 'showSidebar')
+    //.addItem('Generate Reports', 'startGenerationOfReports')
     .addToUi();
 }
 
@@ -53,150 +54,37 @@ function onInstall(e) {
   onOpen(e);
 }
 
-
-/*function onEdit(e) {
-  if (!e || !e.range) return;
-  const sheet = e.range.getSheet();
-  if (sheet.getName() === 'Balance History'){
-    // Only column 3 (Accounts)
-    if (e.range.getColumn() !== 3) return;
-    // Ignore multi-cell edits (paste, autofill)
-    if (e.range.getNumRows() > 1 || e.range.getNumColumns() > 1) return;
-    const newValue = String(e.value || '').trim();
-    const oldValue = String(e.oldValue || '').trim();
-    // No meaningful change
-    if (!newValue && !oldValue) return;
-    if (newValue === oldValue) return;
-    // Update Date & Time column (last column)
-    sheet.getRange(e.range.getRow(), sheet.getLastColumn()).setValue(getTodayDateTime());
-    updateAccountsSheet(oldValue, newValue);
-  }
-}*/
-
-function updateAccountsSheet(oldAccount, newAccount) {
-  const ss = SpreadsheetApp.getActive();
-  const sheet = ss.getSheetByName('Accounts');
-  const normalize = v => v.toLowerCase().trim();
-
-  const maxRows = sheet.getMaxRows();
-  const colB = sheet.getRange(2, 2, maxRows - 1, 1).getValues();
-
-  let lastContentRow = 1;
-  let oldRowIndex = null;
-  let newExists = false;
-
-  colB.forEach((row, i) => {
-    if (row[0]) {
-      lastContentRow = i + 2;
-
-      const value = normalize(row[0]);
-      if (oldAccount && value === normalize(oldAccount)) {
-        oldRowIndex = i + 2;
-      }
-      if (newAccount && value === normalize(newAccount)) {
-        newExists = true;
-      }
-    }
-  });
-
-  // 🔁 Replace old account with new account
-  if (oldRowIndex && newAccount) {
-    sheet.getRange(oldRowIndex, 2).setValue(newAccount);
-    return;
-  }
-
-  // ➕ Add new account if missing
-  if (newAccount && !newExists) {
-    sheet.insertRowsAfter(lastContentRow, 1);
-    sheet.getRange(lastContentRow + 1, 2).setValue(newAccount);
-  }
+function onChange(e){
+  Logger.log(JSON.stringify(e, null, 2));
 }
 
-/*function syncAccountsFromBalanceHistory() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const balanceSheet = ss.getSheetByName('Balance History');
-  const accountsSheet = ss.getSheetByName('Accounts');
-
-  if (!balanceSheet || !accountsSheet) {
-    throw new Error('Required sheets not found');
+function onEdit(e){
+  if (!e || !e.range) return;
+  const range = e.range;
+  const sheet = range.getSheet();
+  const column = range.getColumn();
+  const row = range.getRow();
+  const newValue = e.value;
+  const oldValue = e.oldValue;
+  // Get row data
+  const rowData = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if( sheet.getName() === USER_ACCOUNTS_SHEET ){
+    if( column === 6 || column === 8 || column === 10 || column === 11 ){
+      if( rowData && rowData[5] !=='' && rowData[7] !=='' && rowData[9] !== '' ){
+        populateNetWorth();
+        populateJointNetWorth();
+      }
+    }
   }
-
-  // Normalize helper
-  const normalize = v => String(v).trim().toLowerCase();
-
-  // 1️⃣ Read Balance History (Column C = Accounts)
-  const balanceData = balanceSheet.getDataRange().getValues();
-  const balanceAccounts = balanceData
-    .slice(1)
-    .map(r => r[2])
-    .filter(Boolean)
-    .map(normalize);
-
-  if (!balanceAccounts.length) return;
-
-  // Deduplicate Balance History accounts
-  const balanceSet = new Set(balanceAccounts);
-
-  // 2️⃣ Read Accounts sheet Column B
-  const maxRows = accountsSheet.getMaxRows();
-  const accountCol = accountsSheet
-    .getRange(2, 2, maxRows - 1, 1)
-    .getValues();
-
-  const existingSet = new Set();
-  let lastContentRow = 1;
-
-  accountCol.forEach((row, i) => {
-    if (row[0]) {
-      existingSet.add(normalize(row[0]));
-      lastContentRow = i + 2;
+  if( sheet.getName() === USER_BALANCE_HISTORY_SHEET ){
+    if( column === 2 || column === 5 ){
+      if( rowData && rowData[1] !=='' && rowData[4] !==''){
+        populateNetWorth();
+        populateJointNetWorth();
+      }
     }
-  });
-
-  // 3️⃣ Find truly new accounts
-  const newAccounts = [...balanceSet].filter(
-    acc => !existingSet.has(acc)
-  );
-
-  if (!newAccounts.length) return;
-
-  // 4️⃣ Prepare rows (restore original case from Balance History)
-  const originalMap = {};
-  balanceData.slice(1).forEach(r => {
-    if (r[2]) {
-      const key = normalize(r[2]);
-      if (!originalMap[key]) originalMap[key] = r[2].trim();
-    }
-  });
-
-  const rowsToInsert = newAccounts.map(acc => [
-    '', originalMap[acc], '', '', '', '', '', '', '', '', '', ''
-  ]);
-
-  const colCount = accountsSheet.getLastColumn();
-
-  // 5️⃣ Insert rows after last real account
-  accountsSheet.insertRowsAfter(lastContentRow, rowsToInsert.length);
-
-  // 6️⃣ Write data
-  const range = accountsSheet.getRange(
-    lastContentRow + 1,
-    1,
-    rowsToInsert.length,
-    colCount
-  );
-
-  range
-    .setValues(rowsToInsert)
-    .setFontSize(9)
-    .setFontFamily('Comfortaa')
-    .setFontWeight('bold')
-    .setFontColor('#000000');
-}*/
-
-/*function onChange(e){
-  Logger.log(JSON.stringify(e, null, 2));
-}*/
+  }
+}
 
 function appBaseTemplates(){
   return [
@@ -261,13 +149,18 @@ function generateRandomNumber() {
 }
 
 function getTodayDate(){
-  var today = Utilities.formatDate(new Date(), "GMT-6", "MM/dd/yyyy");
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MM/dd/yyyy");
   return today;
 }
 
 function getTodayDateTime(){
-  var today = Utilities.formatDate(new Date(), "GMT-6", "MM/dd/yyyy HH:mm:ss");
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MM/dd/yyyy HH:mm:ss");
   return today;
+}
+
+function getDateTime() {
+  var currentDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "MMM dd, yyyy hh:mm a");
+  return currentDate;
 }
 
 function createStripeSession(){
@@ -282,14 +175,15 @@ function createStripeSession(){
       
       const stripeKey = response.result.stripeSecretKey;
       const email = Session.getActiveUser().getEmail();
+      const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
 
       let url = 'https://api.stripe.com/v1/checkout/sessions';
 
       var payload =
         'mode=subscription' +
         '&customer_email='+ email + 
-        '&success_url=' + encodeURIComponent(API_ENDPOINT+'success?session_id={CHECKOUT_SESSION_ID}') +
-        '&cancel_url=' + encodeURIComponent(API_ENDPOINT+'cancel') +
+        '&success_url=' + encodeURIComponent(API_ENDPOINT+'success?session_id={CHECKOUT_SESSION_ID}&spreadsheet_id='+spreadsheetId) +
+        '&cancel_url=' + encodeURIComponent(API_ENDPOINT+'cancel?spreadsheet_id='+spreadsheetId) +
         '&line_items[0][price]=' + PRICE_ID +
         '&line_items[0][quantity]=1';
 
@@ -304,7 +198,12 @@ function createStripeSession(){
       };
       
       var request = UrlFetchApp.fetch(url, options);
-      return JSON.parse(request.getContentText()).url;
+      const json = JSON.parse(request.getContentText());
+
+      return {
+        success: true,
+        checkoutUrl: json.url
+      };
     }
    
   }catch(e){
@@ -336,6 +235,7 @@ function showSetupWizardTemplate(){
 
 function showUserDashboardTemplate(){
   const template = HtmlService.createTemplateFromFile('UserDashboard');
+  template.isAutoSyncEnabled = PropertiesService.getUserProperties().getProperty("AUTO_SYNC_STATUS") === 'true' ? true : false;
   return template.evaluate().getContent();
 }
 
@@ -384,6 +284,9 @@ function installTemplateInitialSetup(){
           copiedSheet.setName(sheetName);
         }
       });
+
+      // Active Start Here sheet
+      SpreadsheetApp.getActive().getSheetByName(USER_START_HERE_SHEET).activate();
     }
     return {
       status: true,
@@ -416,21 +319,28 @@ function saveConfiguration(data){
         .atHour(6) // Set your preferred hour
         .create();
 
-      PropertiesService.getUserProperties().setProperty("SYNC_ACTIVATED", "true");
-    }
-    if( data.sheetEditInstant === true ){
+      PropertiesService.getUserProperties().setProperty("AUTO_SYNC_STATUS", true);
+    }else{
       triggers.forEach(trigger => {
-        if (trigger.getHandlerFunction() === 'handleEdit') {
+        if (trigger.getHandlerFunction() === 'runThefinUPlaidAutoSync') {
+          ScriptApp.deleteTrigger(trigger);
+        }
+      });
+      PropertiesService.getUserProperties().setProperty("AUTO_SYNC_STATUS", false);
+    }
+    /*if( data.sheetEditInstant === true ){
+      triggers.forEach(trigger => {
+        if (trigger.getHandlerFunction() === 'handleOnEdit') {
           ScriptApp.deleteTrigger(trigger);
         }
       });
 
       const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
-      ScriptApp.newTrigger('handleEdit')
+      ScriptApp.newTrigger('handleOnEdit')
         .forSpreadsheet(spreadsheetId)
         .onEdit()
         .create();
-    }
+    }*/
     return {
       status: true,
       message: "Saved Successfully"
@@ -444,16 +354,51 @@ function saveConfiguration(data){
   }
 }
 
+function toggleAutoSyncSetting( status ){
+  try{
+    const triggers = ScriptApp.getProjectTriggers();
+    if( status === true ){
+      let functionToRun = 'runThefinUPlaidAutoSync';
+      // Remove existing triggers for the target function
+      triggers.forEach(trigger => {
+        if (trigger.getHandlerFunction() === functionToRun) {
+          ScriptApp.deleteTrigger(trigger);
+        }
+      });
+      // Create a new daily time-based trigger
+      ScriptApp.newTrigger(functionToRun)
+        .timeBased()
+        .everyDays(1)
+        .atHour(6) // Set your preferred hour
+        .create();
+      PropertiesService.getUserProperties().setProperty("AUTO_SYNC_STATUS", true);
+    }else{
+      triggers.forEach(trigger => {
+        if (trigger.getHandlerFunction() === 'runThefinUPlaidAutoSync') {
+          ScriptApp.deleteTrigger(trigger);
+        }
+      });
+      PropertiesService.getUserProperties().setProperty("AUTO_SYNC_STATUS", false);
+    }
+    return {
+      status: true,
+      message: "Auto-Sync status updated successfully."
+    }
+  }catch(error){
+    Logger.log(`Error while toggleAutoSyncSetting: ${error.message}`);
+    return {
+      status: false,
+      message: "Something went wrong, please try again."
+    }
+  }
+}
+
 function getConnectedPlaidAccountsTemplate(){
   const response = getAppPlaidConnectedAccounts();
   if( response.success === true ){
-    if( response.result.length > 0 ){
-      const template = HtmlService.createTemplateFromFile('AccountListCard');
-      template.accounts = response.result;
-      return template.evaluate().getContent();
-    }else{
-      return false;
-    }
+    const template = HtmlService.createTemplateFromFile('AccountListCard');
+    template.accounts = response.result;
+    return template.evaluate().getContent();
   }else{
     const template = HtmlService.createTemplateFromFile('Error');
     template.message = "No data available right now, please try again!";
@@ -484,6 +429,10 @@ function getRenameAccountTemplate( accountId, accountName ){
 
 function runThefinUPlaidAutoSync(){
   try{
+    let isSyncEnabled = PropertiesService.getUserProperties().getProperty("AUTO_SYNC_STATUS");
+    if( isSyncEnabled !== 'true' ){
+      return false;
+    }
     const response = getAppPlaidConnectedAccounts();
     if( response.success === true ){
       let accounts = response.result;
@@ -524,109 +473,85 @@ function runThefinUPlaidAutoSync(){
   }
 }
 
-function handleEdit(e){
+function handleOnEdit(e){
+  if (!e || !e.range) return;
   const range = e.range;
   const sheet = range.getSheet();
+  const column = range.getColumn();
+  const row = range.getRow();
+  const newValue = e.value;
+  const oldValue = e.oldValue;
+  const editCell = range.getA1Notation();
+  // Get row data
+  const rowData = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
 
   const defSheet = UserSpreadsheet.getSheetByName(USER_DEFINITION_SHEET);
-  
-  // Get the column that was edited
-  const editedColumn = range.getColumn();
 
-  const editCell = range.getA1Notation();
-
-  let dropDown;
-
-  try{
-
-    switch( sheet.getName() ){
-
-      case USER_TRANSACTIONS_SHEET:
-        let TRAN_CAT_COL_REF = 'I5';
-        let TRAN_OWN_COL_REF = 'I11';
-        let TRAN_AMT_COL_REF = 'I10';
-
-        // Read the column indices from the Definition sheet (1-based index)
-        let catCol = defSheet.getRange(TRAN_CAT_COL_REF).getValue();
-        let ownCol = defSheet.getRange(TRAN_OWN_COL_REF).getValue();
-        let amtCol = defSheet.getRange(TRAN_AMT_COL_REF).getValue();
-        /*const row = range.getRow();
-        const col = range.getColumn();
-
-        // 3. Get the formatting from the row above
-        const numColumns = sheet.getLastColumn();
-        const sourceRange = sheet.getRange(row - 1, 1, 1, numColumns);
-        const targetRange = sheet.getRange(row, 1, 1, numColumns);
-
-        // 4. Apply formatting and dropdowns to the current row
-        // This will NOT overwrite the text the user just typed.
-        sourceRange.copyTo(targetRange, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
-        sourceRange.copyTo(targetRange, SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION, false);*/
-
-        if (editedColumn === catCol || editedColumn === ownCol || editedColumn === amtCol ) {
-          regenerateAllReports();
+  if( sheet.getName() === USER_BALANCE_HISTORY_SHEET ){
+    let dateCol = 2;
+    let accountsCol = 3;
+    let accountNumberCol = 4;
+    let balanceCol = 5;
+    let balanceIDCol = 6;
+    let accountIDCol = 7;
+    let dateTimeCol = 8;
+    
+    if( column === balanceCol ){
+      let accountId = rowData[accountIDCol -1];
+      // check if accountId is not empty & newValue is a number 
+      if( accountId && accountId !== '' && !isNaN(newValue) ){
+        let accountData = checkAccountBalanceByAccountId( accountId );
+        if( accountData !== null ){
+          let accountBalance = parseFloat( accountData[4] ) || 0;
+          let newBalance = parseFloat( newValue ) || 0;
+          if( accountBalance === newBalance ){
+            let message = 'Generating reports will refresh all data and may take a few minutes to complete. Do you want to proceed?';
+            confirmReportGenerationAlertMessage( message );
+          }
         }
-
-      break;
-      case USER_MONTHLY_BUDGET_SHEET:
-        dropDown = 'C2';
-        //Logger.log(editCell);
-        if ( editCell === dropDown && typeof populateMonthlyBudget === 'function' ) {
-          populateMonthlyBudget();
-          regenerateNetWorthReports();
-        }
-      break;
-      case USER_JOINT_MONTHLY_BUDGET_SHEET:
-        dropDown = 'C2';
-        if ( editCell === dropDown && typeof populateJointMonthlyBudget === 'function' ) {
-          populateJointMonthlyBudget();
-          regenerateNetWorthReports();
-        }
-      break;
-      case USER_YEARLY_BUDGET_SHEET:
-        dropDown = 'E2';
-        if ( editCell === dropDown && typeof populateYearlyBudget === 'function' ) {
-          populateYearlyBudget();
-          regenerateNetWorthReports();
-        }
-      break;
-      case USER_JOINT_YEARLY_BUDGET_SHEET:
-        dropDown = 'D2';
-        if ( editCell === dropDown && typeof populateJointYearlyBudget === 'function' ) {
-          populateJointYearlyBudget();
-          regenerateNetWorthReports();
-        }
-      break;
-      case USER_ACCOUNTS_SHEET:
-        let balanceCol = defSheet.getRange('F10').getValue();
-        let ownerCol = defSheet.getRange('F11').getValue();
-        //Logger.log(ownerCol);
-        let groupCol = defSheet.getRange('F6').getValue();
-        let assliabCol = defSheet.getRange('F7').getValue();
-        if (range.getRow() > sheet.getLastRow() && e.value) {
-          populateNetWorth();
-          populateJointNetWorth();
-        }
-        if( editedColumn === balanceCol || editedColumn === ownerCol || editedColumn === groupCol || editedColumn === assliabCol ){
-          populateNetWorth();
-          populateJointNetWorth();
-        }
-      break;
-      case USER_CATEGORIES_SHEET:
-        let typeCol = defSheet.getRange('C7').getValue();
-        let hiddenCol = defSheet.getRange('C8').getValue();
-        let name1Col = defSheet.getRange('C9').getValue();
-        let name2Col = defSheet.getRange('C10').getValue();
-        //if( editedColumn === typeCol || editedColumn === hiddenCol || editedColumn === name1Col || editedColumn === name2Col ){
-          populateMonthlyBudget();
-          populateJointMonthlyBudget();
-          populateYearlyBudget();
-          populateJointYearlyBudget();
-        //}
-      break;
+      }
     }
-  }catch( error ){
-    Logger.log("Error in onEdit trigger: " + error.toString());
+  }else if( sheet.getName() === USER_ACCOUNTS_SHEET ){
+    let ownCol = defSheet.getRange('F11').getValue();
+    let groupCol = defSheet.getRange('F6').getValue();
+    let assetliabilityCol = defSheet.getRange('F7').getValue();
+    let hideCol = defSheet.getRange('F8').getValue();
+    // check if edited column is one of the above and only trigger report generation if all values are present
+
+    if (column === ownCol || column === groupCol || column === assetliabilityCol || column === hideCol ) {
+      if( rowData[ownCol -1] === '' || rowData[groupCol -1] === '' || rowData[assetliabilityCol -1] === ''){
+        return;
+      }
+      let message = 'Generating reports will refresh all data and may take a few minutes to complete. Do you want to proceed?';
+      confirmReportGenerationAlertMessage( message );
+    }
+  }else if( sheet.getName() === USER_TRANSACTIONS_SHEET ){
+    let catCol = defSheet.getRange('I5').getValue();
+    let ownCol = defSheet.getRange('I11').getValue();
+    let amtCol = defSheet.getRange('I10').getValue();
+    if (column === catCol || column === ownCol || column === amtCol ) {
+      let message = 'Generating reports will refresh all data and may take a few minutes to complete. Do you want to proceed?';
+      confirmReportGenerationAlertMessage( message );
+    }
+  }else if( sheet.getName() === USER_MONTHLY_BUDGET_SHEET ){
+    if( editCell === 'C2' ){
+      startGenerationOfMonthlyBudget();
+    }
+  }else if( sheet.getName() === USER_YEARLY_BUDGET_SHEET ){
+    if( editCell === 'E2' ){
+      startGenerationOfYearlyBudget();
+    }
+  }else if( sheet.getName() === USER_JOINT_MONTHLY_BUDGET_SHEET ){
+    if( editCell === 'C2' ){
+      startGenerationOfJointMonthlyBudget();
+    }
+  }else if( sheet.getName() === USER_JOINT_YEARLY_BUDGET_SHEET ){
+    if( editCell === 'D2' ){
+      startGenerationOfJointYearlyBudget();
+    }
+  }else if( sheet.getName() === USER_CATEGORIES_SHEET ){
+  }else{
+    return;
   }
 }
 
@@ -672,17 +597,24 @@ function updateAccountName(accountId, newName) {
 
 function removeAccountFromList(accountId) {
   try{
-    const response = updateAppAccountDetailById(accountId,{status: false});
-    if( response.success === true ){
-      return {
-        status: true,
-        message: 'Account name updated'
-      };
-    }else{
-      return {
-        status: false,
-        message: 'Something went wrong, please try again.'
-      };
+    var result = SpreadsheetApp.getUi().alert(
+      'Remove Account',
+      'Do you want to remove the account from the list? If once removed, you cannot see the account from the list. please confirm',
+      SpreadsheetApp.getUi().ButtonSet.YES_NO
+    );
+    if (result == SpreadsheetApp.getUi().Button.YES) {
+      const response = updateAppAccountDetailById(accountId,{status: false});
+      if( response.success === true ){
+        return {
+          status: true,
+          message: 'Account name updated'
+        };
+      }else{
+        return {
+          status: false,
+          message: 'Something went wrong, please try again.'
+        };
+      }
     }
   }catch(error){
     Logger.log(`Error while updateAccountName: ${error.message}`);
@@ -690,6 +622,8 @@ function removeAccountFromList(accountId) {
       status: false,
       message: "Something went wrong, please try again."
     }
+  }finally {
+    SpreadsheetApp.getUi().alert('Account removed successfully.');
   }
 }
 
@@ -697,7 +631,7 @@ function confirmLinkAccountToTemplate( accountId ){
 
   const userProperties = PropertiesService.getUserProperties();
 
-  const accountName = getAccountNameByAccountId(accountId);
+  const accountName = getPlaidAccountNameByAccountId(accountId);
 
   if( accountName !== null ){
     var result = SpreadsheetApp.getUi().alert(
@@ -726,7 +660,7 @@ function confirmUnlinkAccountFromTemplate(accountId){
   
   const userProperties = PropertiesService.getUserProperties();
 
-  const accountName = getAccountNameByAccountId(accountId);
+  const accountName = getPlaidAccountNameByAccountId(accountId);
 
   var result = SpreadsheetApp.getUi().alert(
      'Remove existing data?',
@@ -750,7 +684,6 @@ function linkAccountDataToSpreadsheet(account_id) {
   try {
     // --- PERFORM YOUR TASK HERE (e.g., API calls, heavy data processing) ---
     Utilities.sleep(5000); // Simulating work
-    installFeaturedTemplates();
     linkTransactionSheet(account_id);
     let support_response = checkItemProductSupport( account_id, 'investments');
     if( support_response === true ){
@@ -758,6 +691,7 @@ function linkAccountDataToSpreadsheet(account_id) {
     }
     updateAccountBalanceHistory(account_id);
     linkAccountsSheetData(account_id);
+    installFeaturedTemplates();
     updateAppAccountDetailById(
       account_id,
       {
@@ -1018,7 +952,7 @@ function protectSheetByName(sheetName){
   }
 }
 
-function getAccountNameByAccountId(account_id){
+function getPlaidAccountNameByAccountId(account_id){
   try{
     const response = getAppPlaidAccountById(account_id);
     //Logger.log( JSON.stringify(response, null, 2) );
@@ -1073,12 +1007,177 @@ function updatePlaidAccountIDOnSheets( institution_id, accounts ){
   }
 }
 
+function confirmReportGenerationAlertMessage(message){
+  // Show alert message with yes or no options
+  var result = SpreadsheetApp.getUi().alert(
+    'Generate Reports?',
+    message || 'Generating reports will refresh all data and may take a few minutes to complete. Do you want to proceed?',
+    SpreadsheetApp.getUi().ButtonSet.YES_NO
+  );
+  if (result == SpreadsheetApp.getUi().Button.YES) {
+    SpreadsheetApp.getUi().alert('Report generation has started. Do not change anything until the process completes.');
+    startReportGenerationTask();
+  }
+}
+
+function checkAccountBalanceByAccountId(accountId){
+  const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+  const data = sheet.getDataRange().getValues();
+  for (let row = 1; row < data.length; row++) {
+    if( data[row].includes(accountId) ){
+      return JSON.parse( JSON.stringify( data[row] ) );
+    }
+  }
+  return null;
+}
+
+function getAccountDataByAccountId(accountId){
+  const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+  const data = sheet.getDataRange().getValues();
+  for (let row = 1; row < data.length; row++) {
+    if( data[row].includes(accountId) ){
+      return JSON.parse( JSON.stringify( data[row] ) );
+    }
+  }
+  return null;
+}
+
 /**
  * Step 4: Polling function called by the UI to check the flag status
  */
 function checkTaskStatus() {
   const status = PropertiesService.getUserProperties().getProperty('TASK_STATUS');
   return status;
+}
+
+function showAddBalanceHistoryFormTemplate(){
+  const template = HtmlService.createTemplateFromFile('AddBalanceHistoryCard');
+  return template.evaluate().getContent();
+}
+
+function showExistingAccountFormFieldsTemplate(){
+  let sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+  let lastrow = sheet.getLastRow() + 1;
+  let accounts = [];
+
+  // Account Name in column B & Account ID in last column
+  // break if both value is empty
+  for( let i = 1; i <= lastrow; i++ ){
+    let accountName = sheet.getRange(i + 1, 2).getValue();
+    let accountId = sheet.getRange(i + 1, sheet.getLastColumn()).getValue();
+    if( accountName === '' && accountId === '' ){
+      break;
+    }
+    if( accountName !== '' && accountId !== '' ){
+      accounts.push({
+        name: accountName,
+        id: accountId
+      });
+    }
+  }
+  const template = HtmlService.createTemplateFromFile('ExistingAccountFields');
+  template.accounts = accounts;
+  return template.evaluate().getContent();
+}
+
+function showManualAccountFormFieldsTemplate(){
+  const template = HtmlService.createTemplateFromFile('ManualAccountFormFields');
+  return template.evaluate().getContent();
+}
+
+function submitBalanceHistoryFormData(formData){
+  try{
+    let response = addManualAccountBalanceHistoryData( formData );
+    return response;
+  }
+  catch(error){
+    Logger.log(`Error while submitBalanceHistoryFormData: ${error.message}`);
+    return {
+      status: false,
+      message: "Something went wrong, please try again."
+    }
+  }
+}
+
+function addManualAccountBalanceHistoryData( data ){
+  try{
+    let sheet = UserSpreadsheet.getSheetByName(USER_BALANCE_HISTORY_SHEET);
+    let lastrow = sheet.getLastRow() + 1;
+    // change date format to mm/dd/yyyy
+    data.balanceDate = formatDateToMMDDYYYY( data.balanceDate );
+    let accountName = '';
+    let accountId = '';
+    let accountNumber = '';
+    if( data.accountType === 'existing' ){
+      let accountData = getAccountDataByAccountId( data.accountName );
+      if( accountData ){
+        accountName = accountData[1];
+        accountId = data.accountName;
+        accountNumber = accountData[2];
+      }
+    }else{
+      accountName = data.accountName;
+      accountId = generateUniqueId();
+    }
+    sheet.getRange(lastrow, 2).setValue(data.balanceDate).setFontSize(9)
+        .setFontFamily("Comfortaa")
+        .setFontColor("#000000")
+        .setFontWeight("bold"); // Date
+    sheet.getRange(lastrow, 3).setValue(accountName).setFontSize(9)
+        .setFontFamily("Comfortaa")
+        .setFontColor("#000000")
+        .setFontWeight("bold"); // Account Name
+    sheet.getRange(lastrow, 4).setValue(accountNumber).setFontSize(9)
+        .setFontFamily("Comfortaa")
+        .setFontColor("#000000")
+        .setFontWeight("bold"); // Account Number
+    sheet.getRange(lastrow, 5).setValue(data.accountBalance).setFontSize(9)
+        .setFontFamily("Comfortaa")
+        .setFontColor("#000000")
+        .setFontWeight("bold"); // Balance
+    sheet.getRange(lastrow, 7).setValue(accountId).setFontSize(9)
+        .setFontFamily("Comfortaa")
+        .setFontColor("#000000")
+        .setFontWeight("bold"); // Account ID
+    sheet.getRange(lastrow, 8).setValue(getTodayDateTime()).setFontSize(9)
+        .setFontFamily("Comfortaa")
+        .setFontColor("#000000")
+        .setFontWeight("bold");
+    if( data.accountType === 'manual' ){
+      let accountSheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+      let accountLastRow = accountSheet.getLastRow() + 1;
+       for( let i = 1; i <= accountLastRow; i++ ){
+        if( accountSheet.getRange(i + 1, 12).getValue() === ''){
+          accountSheet.getRange(i + 1, 12).setValue(accountId); // account id
+          break;
+        }
+      }
+    }
+    return {
+      status: true,
+      message: "Balance history added successfully."
+    }
+  }catch(error){
+    Logger.log(`Error while addManualAccountBalanceHistoryData: ${error.message}`);
+    return {
+      status: false,
+      message: "Something went wrong, please try again."
+    }
+  }
+}
+
+function generateUniqueId(){
+  let timestamp = new Date().getTime().toString(36);
+  let randomNum = Math.floor(Math.random() * 1e8).toString(36);
+  return timestamp + randomNum;
+}
+
+function formatDateToMMDDYYYY(dateString){
+  let date = new Date(dateString);
+  let month = (date.getMonth() + 1).toString().padStart(2, '0');
+  let day = date.getDate().toString().padStart(2, '0');
+  let year = date.getFullYear();
+  return `${month}/${day}/${year}`;
 }
 
 function test(){
@@ -1090,6 +1189,7 @@ function test(){
       break;
     }
   }
+  Logger.log("Done");
 }
 
 function resetAccountOwnerCell(accountName){

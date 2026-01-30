@@ -33,121 +33,124 @@ function showTab(tabId) {
 
 // ── Load accounts from your API + render ──────────────────────
 function loadConnectedAccounts() {
-  const loader = document.getElementById('accounts-loader');
-  const list = document.getElementById('connected-account-list');
-  const empty = document.getElementById('empty-state');
-  const accountDetailElement = document.getElementById('account-detail');
-  const renameAccountElement = document.getElementById('rename-account');
+
+  const tabAccountsEle = document.getElementById('tab-accounts');
+  const accountListElement = tabAccountsEle.querySelector('#connected-account-list');
+  const accountDetailElement = tabAccountsEle.querySelector('#account-detail');
+  const renameAccountElement = tabAccountsEle.querySelector('#rename-account');
+  const balanceHistoryElement = tabAccountsEle.querySelector('#balance-history');
+  const loaderElement = tabAccountsEle.querySelector('.tab-loader');
+
   // Reset UI
-  loader.classList.remove('hidden');
-  list.classList.add('hidden');
-  empty.classList.add('hidden');
+  loaderElement.classList.remove('hidden');
+  accountListElement.classList.add('hidden');
   accountDetailElement.classList.add('hidden');
   renameAccountElement.classList.add('hidden');
-  list.innerHTML = '';
+  balanceHistoryElement.classList.add('hidden');
+  accountListElement.innerHTML = '';
   accountDetailElement.innerHTML = '';
   renameAccountElement.innerHTML = '';
+  balanceHistoryElement.innerHTML = '';
 
   google.script.run.withSuccessHandler(response => {
     if( response !== false ){
-      loader.classList.add('hidden');
-      list.innerHTML = response;
-      list.classList.remove('hidden');
+      accountListElement.innerHTML = response;
+      accountListElement.classList.remove('hidden');
+      loaderElement.classList.add('hidden');
     }else{
-      loader.classList.add('hidden');
-      empty.classList.remove('hidden');
+      accountListElement.innerHTML = '<p class="text-gray-600 py-8 text-center">Something went wrong, Please try again later.</p>';
+      accountListElement.classList.remove('hidden');
+      loaderElement.classList.add('hidden');
     }
   }).withFailureHandler(err => {
-      loader.innerHTML = `
+      accountListElement.innerHTML = `
         <p class="text-red-600 py-8">
           Sorry, couldn't load accounts<br>
           <span class="text-sm">(${err.message || 'Network error'})</span>
         </p>
       `;
+      accountListElement.classList.remove('hidden');
+      loaderElement.classList.add('hidden');
   }).getConnectedPlaidAccountsTemplate();   // ← your server function
 }
 // Detail Page
 function viewAccountDetail(account_id) {
-  const loader = document.getElementById('accounts-loader');
-  const list = document.getElementById('connected-account-list');
-  const empty = document.getElementById('empty-state');
-  const detail = document.getElementById('account-detail');
+  const tabAccountsEle = document.getElementById('tab-accounts');
+  const accountListElement = tabAccountsEle.querySelector('#connected-account-list');
+  const accountDetailElement = tabAccountsEle.querySelector('#account-detail');
+  const renameAccountElement = tabAccountsEle.querySelector('#rename-account');
+  const balanceHistoryElement = tabAccountsEle.querySelector('#balance-history');
+  const loaderElement = tabAccountsEle.querySelector('.tab-loader');
   // Reset UI
-  loader.classList.remove('hidden');
-  list.classList.add('hidden');
-  empty.classList.add('hidden');
-  list.innerHTML = '';
+  loaderElement.classList.remove('hidden');
+  accountListElement.classList.add('hidden');
+  renameAccountElement.classList.add('hidden');
+  balanceHistoryElement.classList.add('hidden');
+  accountDetailElement.classList.add('hidden');
+  accountDetailElement.innerHTML = '';
   google.script.run.withSuccessHandler(response => {
-    loader.classList.add('hidden');
-    detail.innerHTML = response;
-    detail.classList.remove('hidden');
+    accountDetailElement.innerHTML = response;
+    accountDetailElement.classList.remove('hidden');
+    loaderElement.classList.add('hidden');
   }).withFailureHandler(err => {
-      loader.innerHTML = `
+      accountDetailElement.innerHTML = `
         <p class="text-red-600 py-8">
           Sorry, couldn't load accounts<br>
           <span class="text-sm">(${err.message || 'Network error'})</span>
         </p>
       `;
+      accountDetailElement.classList.remove('hidden');
+      loaderElement.classList.add('hidden');
   }).getAccountDetailsTemplate(account_id);   // ← your server function
 }
 
 function renameAccount( account_id, account_name ){
-  const loader = document.getElementById('accounts-loader');
-  const detail = document.getElementById('account-detail');
-  const renameAccount = document.getElementById('rename-account');
+  const tabAccountsEle = document.getElementById('tab-accounts');
   // Reset UI
-  loader.classList.remove('hidden');
-  detail.classList.add('hidden');
+  const accountListElement = tabAccountsEle.querySelector('#connected-account-list');
+  const accountDetailElement = tabAccountsEle.querySelector('#account-detail');
+  const renameAccountElement = tabAccountsEle.querySelector('#rename-account');
+  const balanceHistoryElement = tabAccountsEle.querySelector('#balance-history');
+  const loaderElement = tabAccountsEle.querySelector('.tab-loader');
+ 
+  // Reset UI
+  loaderElement.classList.remove('hidden');
+  accountDetailElement.classList.add('hidden');
+  accountListElement.classList.add('hidden');
+  balanceHistoryElement.classList.add('hidden');
+  renameAccountElement.classList.add('hidden');
+  renameAccountElement.innerHTML = '';
   google.script.run.withSuccessHandler(response => {
-    loader.classList.add('hidden');
-    renameAccount.innerHTML = response;
-    renameAccount.classList.remove('hidden');
+    renameAccountElement.innerHTML = response;
+    renameAccountElement.classList.remove('hidden');
+    loaderElement.classList.add('hidden');
   }).withFailureHandler(err => {
-      loader.innerHTML = `
+      renameAccountElement.innerHTML = `
         <p class="text-red-600 py-8">
           Sorry, couldn't load accounts<br>
           <span class="text-sm">(${err.message || 'Network error'})</span>
         </p>
       `;
+      renameAccountElement.classList.remove('hidden');
+      loaderElement.classList.add('hidden');
   }).getRenameAccountTemplate( account_id, account_name );
 }
 
 function goBackAccountListCard(){
-  const loader = document.getElementById('accounts-loader');
-  const detail = document.getElementById('account-detail');
-  const empty = document.getElementById('empty-state');
-  const list = document.getElementById('connected-account-list');
-  // Reset UI
-  loader.classList.remove('hidden');
-  list.classList.add('hidden');
-  empty.classList.add('hidden');
-  detail.classList.add('hidden');
-  list.innerHTML = '';
-  detail.innerHTML = ''
-  google.script.run.withSuccessHandler(response => {
-    loader.classList.add('hidden');
-    list.innerHTML = response;
-    list.classList.remove('hidden');
-  }).withFailureHandler(err => {
-      loader.innerHTML = `
-        <p class="text-red-600 py-8">
-          Sorry, couldn't load accounts<br>
-          <span class="text-sm">(${err.message || 'Network error'})</span>
-        </p>
-      `;
-  }).getConnectedPlaidAccountsTemplate();
+  loadConnectedAccounts();
 }
 
 function cancelRename(){
-  const loader = document.getElementById('accounts-loader');
-  const detail = document.getElementById('account-detail');
-  const renameAccount = document.getElementById('rename-account');
+  const tabAccountsEle = document.getElementById('tab-accounts');
+  const accountDetailElement = tabAccountsEle.querySelector('#account-detail');
+  const renameAccountElement = tabAccountsEle.querySelector('#rename-account');
+  const loaderElement = tabAccountsEle.querySelector('.tab-loader');
   // Reset UI
-  loader.classList.remove('hidden');
-  detail.classList.remove('hidden');
-  renameAccount.innerHTML = '';
-  renameAccount.classList.add('hidden');
-  loader.classList.add('hidden');
+  loaderElement.classList.remove('hidden');
+  accountDetailElement.classList.remove('hidden');
+  renameAccountElement.innerHTML = '';
+  renameAccountElement.classList.add('hidden');
+  loaderElement.classList.add('hidden');
 }
 
 function saveRename( account_id, btnEle ){
@@ -206,17 +209,13 @@ function linkNewAccount() {
 }
 
 function removeAccount(account_id) {
-  if (confirm("If you remove the account, the data of the account will lost. please confirm")) {
-    google.script.run.withSuccessHandler(() => {
-      alert("Account removed successfully");
+  google.script.run.withSuccessHandler( function(response){
+    if( response.status === true ){
       loadConnectedAccounts();
-    }).removeAccountFromList(account_id);
-  }
-}
-
-function runImport() {
-  const id = document.getElementById('detail-title').innerText;
-  google.script.run.withSuccessHandler(msg => alert(msg)).importTransactions(id);
+    }
+  }).withFailureHandler(err => {
+      alert("Failed: " + (err.message || "Unknown error"));
+  }).removeAccountFromList(account_id);
 }
 
 function linkAccountToTemplate(account_id, btnEl){
@@ -261,5 +260,165 @@ function unlinkAccountFromTemplate(account_id, btnEl){
       }).checkTaskStatus();
     }, 5000);
   }).confirmUnlinkAccountFromTemplate(account_id);
+}
+
+function addNewBalanceHistory(btnEle){
+  let tabAccountsEle = btnEle.closest('#tab-accounts');
+  let loaderEle = tabAccountsEle.querySelector('.tab-loader');
+  let accountListElement = tabAccountsEle.querySelector('#connected-account-list');
+  let accountDetailElement = tabAccountsEle.querySelector('#account-detail');
+  let renameAccountElement = tabAccountsEle.querySelector('#rename-account');
+  let balanceHistoryElement = tabAccountsEle.querySelector('#balance-history');
+
+  loaderEle.classList.remove('hidden');
+  balanceHistoryElement.classList.add('hidden');
+  accountListElement.classList.add('hidden');
+  accountDetailElement.classList.add('hidden');
+  renameAccountElement.classList.add('hidden');
+  balanceHistoryElement.innerHTML = '';
+  google.script.run.withSuccessHandler(function(response){
+    loaderEle.classList.add('hidden');
+    balanceHistoryElement.innerHTML = response;
+    balanceHistoryElement.classList.remove('hidden');
+    accountListElement.classList.add('hidden');
+    accountDetailElement.classList.add('hidden');
+    renameAccountElement.classList.add('hidden'); 
+  }).withFailureHandler(function(error){
+    balanceHistoryElement.innerHTML = `
+        <p class="text-red-600 py-8">
+          Sorry, couldn't load form<br>
+          <span class="text-sm">(${error.message || 'Network error'})</span>
+        </p>
+      `;
+    balanceHistoryElement.classList.remove('hidden');
+    loaderEle.classList.add('hidden');
+  }).showAddBalanceHistoryFormTemplate();
+}
+
+function showExistingAccountFields(thisEle){
+  let formEle = thisEle.closest('#balance-history-form');
+  thisEle.classList.add('active', 'theme-bg-semi-light');
+  thisEle.classList.remove('bg-gray-200', 'text-gray-700');
+  formEle.querySelector('#use-manual-account-btn').classList.remove('active', 'theme-bg-semi-light');
+  formEle.querySelector('#use-manual-account-btn').classList.add('bg-gray-200', 'text-gray-700');
+  document.getElementById('existing-account-fields').classList.remove('hidden');
+  document.getElementById('manual-account-fields').classList.add('hidden');
+  // add please wait loader
+  formEle.querySelector('#existing-account-fields').innerHTML = '<p class="text-gray-600 py-4 text-center">Loading...</p>';
+  google.script.run.withSuccessHandler(function(response){
+    formEle.querySelector('#existing-account-fields').innerHTML = response;
+  }).withFailureHandler(function(error){
+    alert("Failed: " + (error.message || "Unknown error"));
+  }).showExistingAccountFormFieldsTemplate();
+}
+function showManualAccountFields(thisEle){
+  let formEle = thisEle.closest('#balance-history-form');
+  thisEle.classList.add('active', 'theme-bg-semi-light');
+  thisEle.classList.remove('bg-gray-200', 'text-gray-700');
+  formEle.querySelector('#use-existing-account-btn').classList.remove('active', 'theme-bg-semi-light');
+  formEle.querySelector('#use-existing-account-btn').classList.add('bg-gray-200', 'text-gray-700');
+  document.getElementById('manual-account-fields').classList.remove('hidden');
+  document.getElementById('existing-account-fields').classList.add('hidden');
+  // add please wait loader
+  formEle.querySelector('#manual-account-fields').innerHTML = '<p class="text-gray-600 py-4 text-center">Loading...</p>';
+  google.script.run.withSuccessHandler(function(response){
+    formEle.querySelector('#manual-account-fields').innerHTML = response;
+  }).withFailureHandler(function(error){
+    alert("Failed: " + (error.message || "Unknown error"));
+  }).showManualAccountFormFieldsTemplate();
+}
+
+function submitBalanceHistoryForm(event){
+  event.preventDefault();
+  let formEle = event.target;
+  let formData = new FormData(formEle);
+  let data = {};
+  let responseEle = formEle.querySelector('.responsemessage');
+  formEle.querySelector('.responsemessage').innerHTML = '';
+  formData.forEach((value, key) => {
+    data[key] = value;
+  });
+  // all fields are required validation - account-name, balance-input, date-input
+  console.log(data);
+  if( !data['accountBalance'] || data['accountBalance'].trim() === '' ){
+    responseEle.classList.add('error', 'text-red-600');
+    responseEle.innerHTML = actionFailureMessage("Please enter the balance");
+    responseEle.classList.remove("hidden");
+    formEle.querySelector('#accountBalance').focus();
+    return;
+  }
+  if( !data['balanceDate'] || data['balanceDate'].trim() === '' ){
+    responseEle.classList.add('error', 'text-red-600');
+    responseEle.innerHTML = actionFailureMessage("Please enter the date");
+    responseEle.classList.remove("hidden");
+    formEle.querySelector('#balanceDate').focus();
+    return;
+  }
+  if( !data['accountName'] || data['accountName'].trim() === '' ){
+    responseEle.classList.add('error', 'text-red-600');
+    responseEle.innerHTML = actionFailureMessage("Please select or enter the account name");
+    responseEle.classList.remove("hidden");
+    formEle.querySelector('#accountName').focus();
+    return;
+  }
+  
+  let submitBtn = formEle.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Submitting...";
+  responseEle.classList.remove("error", "text-red-600");
+  responseEle.innerHTML = '';
+  google.script.run.withSuccessHandler(function(response){
+    if( response.status === true ){
+      formEle.querySelector('.responsemessage').innerHTML = actionSuccessMessage(response.message);
+      formEle.querySelector('.responsemessage').classList.remove("hidden");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Add Balance History";
+      // Reset form
+      formEle.reset();
+    }else{
+      formEle.querySelector('.responsemessage').innerHTML = actionFailureMessage(response.message);
+      formEle.querySelector('.responsemessage').classList.remove("hidden");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Add Balance History";
+    }
+  }).withFailureHandler(function(error){
+    alert("Failed: " + (error.message || "Unknown error"));
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Add Balance History";
+  }).submitBalanceHistoryFormData(data);
+}
+
+function generateFinancialReport(btnEle){
+  btnEle.disabled = true;
+  btnEle.textContent = "Generating..";
+  google.script.run.withSuccessHandler(function(response){
+    btnEle.disabled = false;
+    btnEle.textContent = "Generate Report";
+  }).withFailureHandler(function(error){
+    alert("Failed: " + (error.message || "Unknown error"));
+    btnEle.disabled = false;
+    btnEle.textContent = "Generate Financial Report";
+  }).generateFinancialReport();
+}
+
+function toggleAutoSync(btnEle, enable){
+  btnEle.disabled = true;
+  btnEle.textContent = enable ? "Enabling.." : "Disabling..";
+  google.script.run.withSuccessHandler(function(response){
+    btnEle.disabled = false;
+    btnEle.textContent = enable ? "Disable Auto-Sync" : "Enable Auto-Sync";
+    if( enable ){
+      btnEle.classList.remove("theme-bg-primary");
+      btnEle.classList.add("theme-bg-light");
+    }else{
+      btnEle.classList.remove("theme-bg-light");
+      btnEle.classList.add("theme-bg-primary");
+    }
+    alert(response.message);
+  }).withFailureHandler(function(error){
+    alert("Failed: " + (error.message || "Unknown error"));
+    btnEle.disabled = false;
+    btnEle.textContent = enable ? "Enable Auto-Sync" : "Disable Auto-Sync";
+  }).toggleAutoSyncSetting(enable);
 }
 </script>

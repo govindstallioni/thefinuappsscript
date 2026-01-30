@@ -68,9 +68,7 @@ function connectPlaidModalUI(link_token) {
       showloader("Finalizing connection...");
       google.script.run.withSuccessHandler((response) => {
         hideloader();
-        alert("Account(s) successfully connected!");
-        google.script.host.close();
-        google.script.run.showSidebar();
+        showPlaidSuccessUI(response);
       }).withFailureHandler(err => {
         hideloader();
         alert("Connection failed: " + (err.message || "Unknown error"));
@@ -103,6 +101,39 @@ function initPlaidApp() {
     alert("Cannot start Plaid. " + (err.message || ""));
     google.script.host.close();
   }).generatePlaidTokenLink();
+}
+
+function showPlaidSuccessUI(response){
+  const container = document.getElementById('plaid-content');
+  if (!container) return;
+  container.innerHTML = '';
+  const title = document.createElement('h2');
+  title.textContent = 'Accounts Connected';
+  const message = document.createElement('p');
+  message.innerHTML = 'Your account(s) were successfully connected. Click the button below to open the app.';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.id = 'plaid-success-btn';
+  btn.className = 'cursor-pointer w-full theme-bg-primary text-white py-2 rounded mt-4';
+  btn.textContent = 'Open App';
+  btn.addEventListener('click', function(){
+    // Disable button and show progress
+    btn.disabled = true;
+    const originalText = btn.textContent;
+    btn.textContent = 'Opening...';
+    // Trigger server-side function to show the sidebar, then close dialog on success
+    google.script.run.withSuccessHandler(function(){
+      try { google.script.host.close(); } catch(e) { /* ignore */ }
+    }).withFailureHandler(function(err){
+      btn.disabled = false;
+      btn.textContent = originalText;
+      alert('Unable to open app. Please try again.');
+      console.error('showSidebar failed', err);
+    }).showSidebar();
+  });
+  container.appendChild(title);
+  container.appendChild(message);
+  container.appendChild(btn);
 }
 </script>
 </body>

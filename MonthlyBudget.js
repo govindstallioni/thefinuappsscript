@@ -373,8 +373,7 @@ function updateSheetSummary(outputSheet) {
         }
     }
     
-    const dt = Utilities.formatDate(new Date(), SpreadsheetApp.getActive().getSpreadsheetTimeZone(), "MM/dd/yyyy HH:mm:ss");
-    outputSheet.getRange('B3').setValue("Last updated on " + dt).setFontFamily("Comfortaa");
+    outputSheet.getRange('B3').setValue("Last updated on " + getDateTime());
 }
 
 function getItemPercentage(budget, actual) {

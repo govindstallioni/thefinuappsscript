@@ -235,10 +235,7 @@ function buildJointColumnStack(groupObj, title, name1, name2, grandTotals) {
     for (let k = 0; k < grpData.items.length; k++) {
       const item = grpData.items[k];
       
-      // 3. Add a break before the start of each Account Item (if not the first item)
-      if (k > 0) {
-          stack.push(["", "", "", "", "", ""]);
-      }
+        // No break between account items: items should appear consecutively
       
       // 4. Item Row (Marker "C")
       stack.push([

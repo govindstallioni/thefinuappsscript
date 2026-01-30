@@ -1,6 +1,8 @@
-<? accounts.forEach(function(account) { ?>
-  <? if( account.status === true ) { ?>
-    <div class="bg-white rounded-lg border border-gray-200 hover:border-blue-300 transition-colors">
+<? if( accounts.length === 0 ) { ?>
+  <p class="text-gray-600 text-center mt-5">No connected bank accounts yet</p>
+<? }else{ ?>
+  <? accounts.forEach(function(account) { ?>
+    <div class="bg-white rounded-lg border border-gray-400 transition-colors overflow-hidden">
       <div class="px-3.5 py-3 flex items-center justify-between gap-2.5 px-2">
         <div class="flex items-center gap-2 min-w-0">
           <div class="min-w-0">
@@ -19,20 +21,20 @@
         <? } ?>
       </div>
       <? if(account.is_linked){ ?>
-        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-t text-center py-2 px-2">
-          <button class="text-blue-600 hover:text-blue-800"
-                  onclick="viewAccountDetail('<?= account.account_id || '' ?>')">
+        <div class="border-t border-gray-400 text-center py-2 px-2 theme-bg-primary text-white">
+          <button class="cursor-pointer"
+                  onclick="viewAccountDetail('<?= account.account_id ?>')">
             Make Changes →
           </button>
         </div>
       <? } else { ?>
-        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-t text-center py-2 px-2">
-          <button class="text-blue-600 hover:text-blue-800"
-                  onclick="viewAccountDetail('<?= account.account_id || '' ?>')">
+        <div class="border-t border-gray-400 text-center py-2 px-2 theme-bg-primary text-white">
+          <button class="cursor-pointer"
+                  onclick="viewAccountDetail('<?= account.account_id ?>')">
             Bring in Data →
           </button>
         </div>
       <? } ?>
     </div>
-  <? } ?>
-<? }); ?>
+  <? }); ?>
+<? } ?>
