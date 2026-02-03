@@ -1,6 +1,6 @@
-const API_ENDPOINT = 'https://thefinu.stallioni.com/';
+const DEFAULT_API_ENDPOINT = 'https://thefinu.stallioni.com/';
+const API_ENDPOINT = getScriptProperty('API_ENDPOINT', DEFAULT_API_ENDPOINT);
 
-const UserEmail = Session.getActiveUser().getEmail();
 const UserSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 const UserSpreadsheetUrl = UserSpreadsheet.getUrl();
 const UserSpreadsheetId = UserSpreadsheet.getId();
@@ -30,7 +30,7 @@ var APP_USER_ID = {
 // Configuration
 const RESTAPI_CONFIG = {
   API_BASE_URL: API_ENDPOINT,
-  SCRIPT_ID: 'AKfycbyqPA2eaEAgwNGdVyOAbIeq3_h74nGaujmk80lomXVrErl-948LuTWr9F3rRxPEUX_mhA',
+  SCRIPT_ID: getScriptProperty('SCRIPT_ID', 'AKfycbyqPA2eaEAgwNGdVyOAbIeq3_h74nGaujmk80lomXVrErl-948LuTWr9F3rRxPEUX_mhA'),
   TIMEOUT: 30000 // 30 seconds
 };
 
@@ -53,6 +53,14 @@ function onInstall(e) {
   onOpen(e);
 }
 
+function getScriptProperty(key, fallback) {
+  const value = PropertiesService.getScriptProperties().getProperty(key);
+  return value ? value : fallback;
+}
+
+function getUserEmail() {
+  return Session.getActiveUser().getEmail();
+}
 
 /*function onEdit(e) {
   if (!e || !e.range) return;
@@ -76,10 +84,13 @@ function onInstall(e) {
 function updateAccountsSheet(oldAccount, newAccount) {
   const ss = SpreadsheetApp.getActive();
   const sheet = ss.getSheetByName('Accounts');
-  const normalize = v => v.toLowerCase().trim();
+  const normalize = v => String(v || '').toLowerCase().trim();
 
-  const maxRows = sheet.getMaxRows();
-  const colB = sheet.getRange(2, 2, maxRows - 1, 1).getValues();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    return;
+  }
+  const colB = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
 
   let lastContentRow = 1;
   let oldRowIndex = null;
@@ -507,18 +518,8 @@ function runThefinUPlaidAutoSync(){
         });
       }
     }
-    MailApp.sendEmail(
-      UserEmail,
-      'Thefinu - Plaid Account(s) Sync.',
-      'New updates are synced with connected plaid account(s).',
-    );
     return true;
   }catch(error){
-    MailApp.sendEmail(
-      UserEmail,
-      'Thefinu - Plaid Account(s) Sync.',
-      'Something went wrong while trying to sync the plaid account(s).',
-    );
     Logger.log("An error occurred:", JSON.stringify(error, null, 2));
     return false;
   }

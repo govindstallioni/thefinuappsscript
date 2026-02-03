@@ -12,7 +12,7 @@ function showSetupWizard() {
     mainAppEle.innerHTML = response;
   }).withFailureHandler(function(error){
     loaderEle.classList.add('hidden');
-    mainAppEle.innerHTML = response;
+    mainAppEle.textContent = error?.message || 'Unable to load the setup wizard right now.';
   }).showSetupWizardTemplate();
 }
 
@@ -56,7 +56,7 @@ function checkSubscriptionStatus(btnEle) {
   }).withFailureHandler(function(){
     appNotificationEle.innerHTML = '';
     currentStepEle.classList.add('hidden');
-    appNotificationEle.innerHTML = response;
+    appNotificationEle.textContent = 'Unable to check subscription status right now.';
     appNotificationEle.classList.remove('hidden');
     buttonEventEnd(btnEle, "Try Again");
   }).checkUserSubscription();

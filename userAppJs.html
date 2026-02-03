@@ -6,7 +6,7 @@ function showUserDashboard(){
     showTab('accounts');
   }).withFailureHandler(function(error){
     loaderEle.classList.add('hidden');
-    mainAppEle.innerHTML = response;
+    mainAppEle.textContent = error?.message || 'Unable to load the dashboard right now.';
   }).showUserDashboardTemplate();
 }
 
