@@ -5,7 +5,7 @@
 function validateUserSession() {
 
   try {
-    const userEmail = UserEmail;
+    const userEmail = getUserEmail();
     const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
     
     // If email is empty, the user might need to re-authorize
@@ -29,12 +29,11 @@ function validateUserSession() {
       muteHttpExceptions: true
     };
 
-    const response = UrlFetchApp.fetch(apiUrl, options);
-    const result = JSON.parse(response.getContentText());
+    const response = requestJson(apiUrl, options);
     //Logger.log(result);
     return {
-      success: response.getResponseCode() === 200,
-      result
+      success: response.success,
+      result: response.result
     };
 
   } catch (e) {
@@ -47,17 +46,14 @@ function getAppSettings() {
   try {
     const apiUrl = API_ENDPOINT + 'api/settings';
 
-    const options = {
+    const response = requestJson(apiUrl, {
       method: 'get',
       muteHttpExceptions: true
-    };
-
-    const response = UrlFetchApp.fetch(apiUrl, options);
-    const result = JSON.parse(response.getContentText());
+    });
   
     return {
-      success: response.getResponseCode() === 200,
-      result
+      success: response.success,
+      result: response.result
     };
 
   } catch (e) {
@@ -71,8 +67,7 @@ function getAppSettings() {
 function storePlaidAPIAccounts( data ){
 
   try {
-    const userEmail = UserEmail;
-    const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+    const userEmail = getUserEmail();
     
     // If email is empty, the user might need to re-authorize
     if (!userEmail) {
@@ -88,12 +83,11 @@ function storePlaidAPIAccounts( data ){
       muteHttpExceptions: true
     };
 
-    const response = UrlFetchApp.fetch(apiUrl, options);
-    const result = JSON.parse(response.getContentText());
+    const response = requestJson(apiUrl, options);
     //Logger.log(result);
     return {
-      success: response.getResponseCode() === 200,
-      result
+      success: response.success,
+      result: response.result
     };
 
   } catch (e) {
@@ -105,19 +99,18 @@ function getAppPlaidConnectedAccounts() {
 
   try {
 
-    const apiUrl = API_ENDPOINT + 'api/accounts/get-by-email/'+ UserEmail;
+    const apiUrl = API_ENDPOINT + 'api/accounts/get-by-email/'+ getUserEmail();
 
     const options = {
       method: 'get',
       muteHttpExceptions: true
     };
 
-    const response = UrlFetchApp.fetch(apiUrl, options);
-    const result = JSON.parse(response.getContentText());
+    const response = requestJson(apiUrl, options);
 
     return {
-      success: response.getResponseCode() === 200,
-      result
+      success: response.success,
+      result: response.result
     };
 
   } catch (e) {
@@ -138,12 +131,11 @@ function getAppPlaidAccountById( accountId ){
       muteHttpExceptions: true
     };
 
-    const response = UrlFetchApp.fetch(apiUrl, options);
-    const result = JSON.parse(response.getContentText());
+    const response = requestJson(apiUrl, options);
 
     return {
-      success: response.getResponseCode() === 200,
-      result
+      success: response.success,
+      result: response.result
     };
 
   } catch (e) {
@@ -167,18 +159,43 @@ function updateAppAccountDetailById( accountId, data ){
       muteHttpExceptions: true
     };
 
-    const response = UrlFetchApp.fetch(apiUrl, options);
-    const result = JSON.parse(response.getContentText());
+    const response = requestJson(apiUrl, options);
 
     return {
-      success: response.getResponseCode() === 200,
-      result
+      success: response.success,
+      result: response.result
     };
 
   } catch (e) {
     return {
       success: false,
       error: e.toString()
+    };
+  }
+}
+
+function requestJson(apiUrl, options) {
+  const response = UrlFetchApp.fetch(apiUrl, options);
+  const responseCode = response.getResponseCode();
+  const contentText = response.getContentText();
+  const success = responseCode >= 200 && responseCode < 300;
+
+  if (!contentText) {
+    return { success, result: null, responseCode };
+  }
+
+  try {
+    const result = JSON.parse(contentText);
+    const error = success
+      ? null
+      : result?.error || result?.message || `Request failed with status ${responseCode}.`;
+    return { success, result, error, responseCode };
+  } catch (error) {
+    return {
+      success: false,
+      result: null,
+      error: `Invalid JSON response (${responseCode}).`,
+      responseCode
     };
   }
 }

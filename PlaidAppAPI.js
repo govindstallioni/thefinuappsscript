@@ -55,7 +55,7 @@ function exchangePublicTokenForAccessToken(public_token, metadata) {
     // Prepare payload for your backend
     const dataToSend = {
       timestamp: new Date().toISOString(),
-      email: Session.getActiveUser().getEmail(),
+      email: getUserEmail(),
       plaid_item_id: item_id,
       access_token: access_token,           // ← usually you keep this in your DB, not send!
       accounts: metadata.accounts,
@@ -170,11 +170,6 @@ function getPlaidTransactionSyncData( account_id, new_cursor = null ){
     };
     response = plaidRequest(plaidTransactionsEndpoint, payload);
   }
-  MailApp.sendEmail(
-    UserEmail,
-    'Thefinu - Plaid Account(s) Transactions.',
-    JSON.stringify( response, null, 2 ),
-  );
   return response;
 }
 
@@ -222,11 +217,6 @@ function getPlaidInvestmentsData( account_id ){
 
     response = plaidRequest(plaidInvestmentHistoryEndpoint, payload);
   }
-  MailApp.sendEmail(
-    UserEmail,
-    'Thefinu - Plaid Account(s) Investments.',
-    JSON.stringify( response, null, 2 ),
-  );
   return response;
 }
 
