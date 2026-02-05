@@ -57,6 +57,12 @@
       <button onclick="toggleAutoSync(this, true)"
       class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Enable Auto-Sync</button>
     <? } ?>
+    <div class="mt-4">
+      <button id="cancel-subscription-btn" onclick="handleCancelSubscription(this)"
+        class="cursor-pointer w-full py-2 px-2 bg-red-700 text-white rounded-lg font-medium transition">
+        Cancel Subscription
+      </button>
+    </div>
   </div>
 
   <div id="tab-support" class="py-4 px-0 tab-content hidden">
@@ -120,3 +126,32 @@
       class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Generate Report</button>
   </div>
 </div>
+<script>
+function handleCancelSubscription(btn){
+  // Ask server to show Google UI confirmation dialog
+  google.script.run.withSuccessHandler(function(confirmed){
+    if (!confirmed) return;
+    if (btn) {
+      btn.disabled = true;
+      var origText = btn.innerText;
+      btn.innerText = 'Cancelling...';
+    }
+    google.script.run.withSuccessHandler(function(resp){
+      if (btn) { btn.disabled = false; btn.innerText = origText; }
+      if (resp && resp.success === true){
+        // Use server-side UI alert to notify as well
+        try{ google.script.run.showCancelSubscriptionResult(); }catch(e){}
+        try{ google.script.run.clearSubscriptionProgress(); }catch(e){}
+        // reload the sidebar to reflect changes
+        location.reload();
+      }else{
+        const msg = (resp && resp.result && resp.result.message) || resp.error || 'Failed to cancel subscription.';
+        alert(msg);
+      }
+    }).withFailureHandler(function(err){
+      if (btn) { btn.disabled = false; btn.innerText = origText; }
+      alert('Error cancelling subscription: ' + err);
+    }).cancelUserSubscription();
+  }).showCancelSubscriptionConfirm();
+}
+</script>

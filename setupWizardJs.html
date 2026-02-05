@@ -1,8 +1,10 @@
 <script type="text/javascript">
 
-const paymentProcessingTime = 90;
+const paymentProcessingTime = 120; // seconds (2 minutes)
 let countdownInterval;
-let remainingSeconds = paymentProcessingTime; // 3 minutes
+let remainingSeconds = paymentProcessingTime; // 90 seconds
+let subscriptionPollIntervalId = null;
+let userNavigated = false; // when true, don't auto-navigate away from user's current step
 
 function getSetupWizardEle(){
   return document.getElementById('setup-wizard');
@@ -12,6 +14,8 @@ function showSetupWizard() {
   google.script.run.withSuccessHandler(function(response){
     loaderEle.classList.add('hidden');
     mainAppEle.innerHTML = response;
+    // refresh UI progress after loading
+    refreshSetupProgressUI();
   }).withFailureHandler(function(error){
     loaderEle.classList.add('hidden');
     mainAppEle.innerHTML = response;
@@ -33,49 +37,98 @@ function resetPaymentProcessingTime(){
 }
 
 function startStripeCheckOutProcess(btnEle){
+  if (!btnEle) return;
+  if (btnEle.dataset.disabled === 'true') return; // debounce
   // 1. Start Button Event
   buttonEventStart(btnEle, "Please wait..");     
-  // 2. Start countdown
+  btnEle.dataset.disabled = 'true';
+  // 2. Start countdown (visual)
   startSubscribeCountdown(btnEle);
   // 3. Open Stripe Checkout
   google.script.run.withSuccessHandler(function(response) {
-    // create button element
-    window.open(response.checkoutUrl, '_blank');
+    if (response && response.checkoutUrl) {
+      window.open(response.checkoutUrl, '_blank');
+      // start polling for subscription status (timeout uses paymentProcessingTime)
+      pollForSubscription(btnEle, 5000, paymentProcessingTime * 1000); // poll every 5s for configured time
+    }else{
+      buttonEventEnd(btnEle, "Start Free Trial");
+      btnEle.dataset.disabled = 'false';
+      alert('Failed to create checkout session');
+    }
   }).withFailureHandler(function(err) {
     buttonEventEnd(btnEle, "Start Free Trial");
+    btnEle.dataset.disabled = 'false';
     alert(err);
   }).createStripeSession();
 }
 
-function checkSubscriptionStatus(btnEle) {
-  const setupWizard = getSetupWizardEle();
-  const currentStepEle = setupWizard ? setupWizard.querySelector('#step-2') : document.querySelector('#step-2');
-  if (!currentStepEle) {
-    if (typeof countdownInterval !== 'undefined') clearInterval(countdownInterval);
-    console.warn('checkSubscriptionStatus: step-2 element not found');
-    if (btnEle) buttonEventEnd(btnEle, "Try Again");
-    return;
+function pollForSubscription(btnEle, interval = 5000, timeout = paymentProcessingTime * 1000){
+  const startAt = Date.now();
+  // clear any previous poll
+  if (subscriptionPollIntervalId) {
+    clearInterval(subscriptionPollIntervalId);
+    subscriptionPollIntervalId = null;
   }
-  buttonEventStart(btnEle, "Please wait..");
-  const appNotification = (typeof appNotificationEle !== 'undefined' && appNotificationEle) ? appNotificationEle : document.querySelector('#app-notification');
-  google.script.run.withSuccessHandler(function(response){
-    if (appNotification) {
-      appNotification.innerHTML = '';
-      appNotification.innerHTML = response;
-      appNotification.classList.remove('hidden');
-    }
-    currentStepEle.classList.add('hidden');
-    if (btnEle) buttonEventEnd(btnEle, "Try Again");
-  }).withFailureHandler(function(error){
-    if (appNotification) {
-      appNotification.innerHTML = '';
-      appNotification.innerHTML = (error && error.message) ? error.message : 'An error occurred';
-      appNotification.classList.remove('hidden');
-    }
-    currentStepEle.classList.add('hidden');
-    if (btnEle) buttonEventEnd(btnEle, "Try Again");
-  }).checkUserSubscription();
+
+  subscriptionPollIntervalId = setInterval(() => {
+    google.script.run.withSuccessHandler(function(response){
+      // if subscription detected -> stop everything and advance
+      if (response && response.success === true && response.subscribed === true){
+        clearInterval(subscriptionPollIntervalId);
+        subscriptionPollIntervalId = null;
+        if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+        try{ nextStep(3); }catch(e){}
+        if (btnEle) { buttonEventEnd(btnEle, "Subscribed"); btnEle.dataset.disabled = 'false'; }
+        return;
+      }
+
+      // not subscribed yet: check for timeout
+      if (Date.now() - startAt >= timeout){
+        clearInterval(subscriptionPollIntervalId);
+        subscriptionPollIntervalId = null;
+        if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+        remainingSeconds = paymentProcessingTime;
+        if (btnEle) { buttonEventEnd(btnEle, "Start Free Trial"); btnEle.dataset.disabled = 'false'; }
+
+        const appNotification = document.querySelector('#subscription-status') || document.querySelector('#app-notification');
+        if (appNotification){
+          appNotification.innerHTML = '<div class="text-red-600 mb-3">Subscription not detected yet. Please try again or contact support.</div>';
+          appNotification.classList.remove('hidden');
+        }
+
+        //try{ nextStep(1); }catch(e){}
+        return;
+      }
+      // otherwise continue polling until timeout or success
+    }).withFailureHandler(function(err){
+      // on error, stop polling and show message
+      if (subscriptionPollIntervalId){ clearInterval(subscriptionPollIntervalId); subscriptionPollIntervalId = null; }
+      if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+      if (btnEle) { buttonEventEnd(btnEle, "Try Again"); btnEle.dataset.disabled = 'false'; }
+      const appNotification = document.querySelector('#subscription-status') || document.querySelector('#app-notification');
+      if (appNotification){
+        appNotification.innerHTML = '<div class="text-red-600">Error checking subscription. Please try again.</div>';
+        appNotification.classList.remove('hidden');
+      }
+    }).verifySubscriptionStatus();
+  }, interval);
 }
+
+/*function checkSubscriptionStatus(btnEle) {
+  // kept for compatibility: trigger an immediate verify now
+  google.script.run.withSuccessHandler(function(response){
+    if (response && response.success === true && response.subscribed === true){
+      nextStep(3);
+    }else{
+      const appNotification = document.querySelector('#subscription-status') || document.querySelector('#app-notification');
+      if (appNotification){
+        appNotification.innerHTML = '';
+        appNotification.innerHTML = '<div class="text-yellow-600">Subscription not active yet.</div>';
+        appNotification.classList.remove('hidden');
+      }
+    }
+  }).verifySubscriptionStatus();
+}*/
 
 function startSubscribeCountdown(btn) {
   // clear any existing interval first
@@ -89,7 +142,11 @@ function startSubscribeCountdown(btn) {
     if (remainingSeconds <= 0) {
       clearInterval(countdownInterval);
       countdownInterval = null;
-      checkSubscriptionStatus(btn);
+      // countdown ended — show checking state while poll continues
+      if (btn) {
+        const textEl = btn.querySelector && btn.querySelector('.btn-text');
+        if (textEl) textEl.innerText = 'Checking...';
+      }
     }
   }, 1000);
 }
@@ -98,12 +155,78 @@ function updateButtonText(btn) {
   if (!btn) return;
   const textEl = btn.querySelector && btn.querySelector('.btn-text');
   if (!textEl) return;
+  if (remainingSeconds <= 0) {
+    textEl.innerText = 'Checking...';
+    return;
+  }
   const min = Math.floor(remainingSeconds / 60);
   const sec = remainingSeconds % 60;
   textEl.innerText = `Waiting (${min}:${sec.toString().padStart(2, '0')})`;
 }
 
+/*function updateSetupProgressUI(progressObj){
+  try{
+    if (!progressObj) return;
+    if (progressObj.subscription && progressObj.subscription.status === 'active'){
+      const el = document.getElementById('progress-step-subscription'); if (el){ el.classList.add('progress-complete'); }
+    }
+    if (progressObj.template && progressObj.template.status === 'completed'){
+      const el = document.getElementById('progress-step-template'); if (el){ el.classList.add('progress-complete'); }
+    }
+    if (progressObj.config && progressObj.config.status === 'completed'){
+      const el = document.getElementById('progress-step-config'); if (el){ el.classList.add('progress-complete'); }
+    }
+  }catch(e){ console.warn('updateSetupProgressUI', e); }
+}*/
+
+function refreshSetupProgressUI(){
+  // fetch current progress from server and update UI
+  google.script.run.withSuccessHandler(function(progress){
+    if (!progress) return;
+    console.log(progress);
+    applyProgressToSteps(progress);
+  }).getSetupWizardProgress();
+}
+
+function applyProgressToSteps(progress){
+  try{
+    // if user manually navigated, don't auto-switch steps
+    if (userNavigated) return;
+
+    // hide all steps
+    document.querySelectorAll('#setup-wizard > div').forEach(div => div.classList.add('hidden'));
+    // decide which step to show
+    if (progress.subscription && progress.subscription.status === 'active'){
+      if (!(progress.template && progress.template.status === 'completed')){
+        // show template step
+        const el = document.getElementById('step-3'); if (el) el.classList.remove('hidden');
+        return;
+      }
+      if (!(progress.config && progress.config.status === 'completed')){
+        const el = document.getElementById('step-4'); if (el) el.classList.remove('hidden');
+        return;
+      }
+      // all steps complete
+      const el = document.getElementById('step-5'); if (el) el.classList.remove('hidden');
+      return;
+    }else{
+      // subscription not active - show subscription step (step-2) if user already entered welcome
+      const elWelcome = document.getElementById('step-1');
+      const elSub = document.getElementById('step-2');
+      // If user already started (e.g., subscription checkout started), show subscription step
+      if (progress.subscription && progress.subscription.status && progress.subscription.status !== 'pending'){
+        if (elSub) elSub.classList.remove('hidden');
+      }else{
+        // default to welcome
+        if (elWelcome) elWelcome.classList.remove('hidden');
+      }
+    }
+  }catch(e){ console.warn('applyProgressToSteps', e); }
+}
+
 function nextStep(n){
+  // mark that the user has manually navigated so auto UI refresh won't override
+  userNavigated = true;
   appNotificationEle.innerHTML = '';
   document.querySelectorAll('#setup-wizard > div').forEach(div => div.classList.add('hidden'));
   document.getElementById('step-' + n).classList.remove('hidden');

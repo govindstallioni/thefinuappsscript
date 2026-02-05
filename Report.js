@@ -124,18 +124,16 @@ function generateFinancialReport(){
   try{
     SpreadsheetApp.getUi().alert('Financial report generation has started. Do not change anything until the process completes.');
     regenerateAllReports();
+    return {
+      status: true,
+      message: 'Financial report generated successfully.'
+    };
   }catch(error){
-    SpreadsheetApp.getUi().alert('Something went wrong while generating financial report. Please try again.');
+    SpreadsheetApp.getUi().alert('Please make sure that all the sheets are configured for report generate.');
     Logger.log("Error in generateFinancialReport: " + error.toString());
     return {
       status: false,
       message: error.toString()
-    };
-  }finally{
-    SpreadsheetApp.getUi().alert('Financial report generated successfully.');
-    return {
-      status: true,
-      message: 'Financial report generated successfully.'
     };
   }
 }

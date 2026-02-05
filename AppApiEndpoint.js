@@ -31,7 +31,18 @@ function validateUserSession() {
 
     const response = UrlFetchApp.fetch(apiUrl, options);
     const result = JSON.parse(response.getContentText());
-    //Logger.log(result);
+    // Normalize subscriptionId (accept common variants) so callers can reliably read it
+    try{
+      if(result && result.data){
+        const d = result.data;
+        const found = d.subscriptionId || d.subscription_id || (d.subscriptions && d.subscriptions.id) || (d.subscription && d.subscription.id) || d.subId || null;
+        if(found){
+          d.subscriptionId = found;
+        }
+      }
+    }catch(e){
+      // ignore normalization errors
+    }
     return {
       success: response.getResponseCode() === 200,
       result
@@ -180,5 +191,42 @@ function updateAppAccountDetailById( accountId, data ){
       success: false,
       error: e.toString()
     };
+  }
+}
+
+/**
+ * Cancels the user's subscription by notifying the external API.
+ * The API will receive the user's email in the payload.
+ */
+function cancelUserSubscription(){
+  try{
+    const apiUrl = API_ENDPOINT + 'api/subscription/cancel';
+    const payload = {
+      email: UserEmail,
+      spreadsheetId: SpreadsheetApp.getActiveSpreadsheet().getId(),
+      timestamp: new Date().toISOString()
+    };
+
+    const options = {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(apiUrl, options);
+    const result = JSON.parse(response.getContentText());
+
+    // If API indicates success, clear local subscription progress
+    if (response.getResponseCode() === 200) {
+      try{ clearSubscriptionProgress(); }catch(e){}
+    }
+
+    return {
+      success: response.getResponseCode() === 200,
+      result
+    };
+  }catch(e){
+    return { success: false, error: e.toString() };
   }
 }

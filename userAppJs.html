@@ -421,4 +421,17 @@ function toggleAutoSync(btnEle, enable){
     btnEle.textContent = enable ? "Enable Auto-Sync" : "Disable Auto-Sync";
   }).toggleAutoSyncSetting(enable);
 }
+
+function handleCancelSubscription(btn){
+  // Ask server to show Google UI confirmation dialog
+  if (btn) { btn.disabled = true; orig = btn.innerText; btn.innerText = 'Cancelling...'; }
+  google.script.run.withSuccessHandler(function(response){
+    if (btn) { btn.disabled = false; btn.innerText = orig; }
+    google.script.run.showSidebar();
+  }).withFailureHandler( function(error){
+    alert("Failed: " + (error.message || "Unknown error"));
+    btn.disabled = false;
+    btn.innerText = orig;
+  }).cancelUserSubscription();
+}
 </script>

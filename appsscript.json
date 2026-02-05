@@ -20,7 +20,7 @@
   "addOns": {
     "common": {
       "name": "TheFinU Addon",
-      "logoUrl": "https://thefinu.stallioni.com/logo-full.png",
+      "logoUrl": "https://thefinu.stallioni.com/logo-icon.png",
       "layoutProperties": {
         "primaryColor": "#37484C"
       }

@@ -58,7 +58,7 @@ function onChange(e){
   Logger.log(JSON.stringify(e, null, 2));
 }
 
-function onEdit(e){
+function handleAddonEdit(e){
   if (!e || !e.range) return;
   const range = e.range;
   const sheet = range.getSheet();
@@ -95,20 +95,25 @@ function appBaseTemplates(){
     USER_ACCOUNTS_SHEET,
     USER_TRANSACTIONS_SHEET,
     USER_INVESTMENTS_SHEET,
+    USER_NET_WORTH_SHEET,
+    USER_JOINT_NET_WORTH_SHEET,
+    USER_RECONCILE_SHEET,
+    USER_DEFINITION_SHEET,
+    //USER_MONTHLY_BUDGET_SHEET,
+    //USER_JOINT_MONTHLY_BUDGET_SHEET,
+    //USER_YEARLY_BUDGET_SHEET,
+    //USER_JOINT_YEARLY_BUDGET_SHEET,
+    //USER_BUDGET_MAKER_SHEET,
   ];
 }
 
 function appFeaturedTemplates(){
   return [
-    USER_RECONCILE_SHEET,
-    USER_NET_WORTH_SHEET,
-    USER_JOINT_NET_WORTH_SHEET,
     USER_MONTHLY_BUDGET_SHEET,
     USER_JOINT_MONTHLY_BUDGET_SHEET,
     USER_YEARLY_BUDGET_SHEET,
     USER_JOINT_YEARLY_BUDGET_SHEET,
-    USER_BUDGET_MAKER_SHEET,
-    USER_DEFINITION_SHEET
+    USER_BUDGET_MAKER_SHEET
   ];
 }
 
@@ -118,9 +123,16 @@ function appFeaturedTemplates(){
 function showSidebar() {
   let userValidation = validateUserSession();
   if( userValidation.result && userValidation.result.data.isSubscribed === true ){
-    installTemplateInitialSetup();
-    showUserDashboardSidebar();
+    // mark subscription progress
+    try{ markSetupStepCompleted('subscription', { status: 'active', activatedAt: new Date().toISOString() }); }catch(e){}
+    // only show dashboard if all setup steps are complete
+    if( isSetupCompleted() ){
+      showUserDashboardSidebar();
+    }else{
+      showSetupWizardSidebar();
+    }
   }else{
+    try{ clearSubscriptionProgress(); }catch(e){}
     showSetupWizardSidebar();
   }
 }
@@ -253,6 +265,155 @@ function getTemplateBlockUI(file){
   return template.evaluate().getContent();
 }
 
+/**
+ * Setup wizard progress helpers
+ * Stored in User Properties under key: SETUP_WIZARD_PROGRESS
+ */
+function getSetupWizardProgress(){
+  try{
+    const userProps = PropertiesService.getUserProperties();
+    const raw = userProps.getProperty('SETUP_WIZARD_PROGRESS');
+    if( raw ){ 
+      Logger.log( JSON.stringify(raw, null, 2) );
+      return JSON.parse(raw);
+    }
+  }catch(e){
+    Logger.log('getSetupWizardProgress parse error: ' + e.toString());
+  }
+  return {
+    subscription: { status: 'pending', startedAt: null, activatedAt: null },
+    template: { status: 'pending', installedAt: null },
+    config: { status: 'pending', autoSync: null, savedAt: null },
+    completedSteps: [],
+    updatedAt: null
+  };
+}
+
+function setSetupWizardProgress(progressObj){
+  try{
+    const userProps = PropertiesService.getUserProperties();
+    progressObj.updatedAt = new Date().toISOString();
+    userProps.setProperty('SETUP_WIZARD_PROGRESS', JSON.stringify(progressObj));
+    return true;
+  }catch(e){
+    Logger.log('setSetupWizardProgress error: ' + e.toString());
+    return false;
+  }
+}
+
+function markSetupStepCompleted(stepName, meta){
+  try{
+    const progress = getSetupWizardProgress();
+    meta = meta || {};
+    switch(stepName){
+      case 'subscription':
+        progress.subscription.status = meta.status || 'active';
+        progress.subscription.startedAt = progress.subscription.startedAt || meta.startedAt || new Date().toISOString();
+        progress.subscription.activatedAt = meta.activatedAt || (progress.subscription.status === 'active' ? new Date().toISOString() : null);
+        break;
+      case 'template':
+        progress.template.status = meta.status || 'completed';
+        progress.template.installedAt = meta.installedAt || new Date().toISOString();
+        break;
+      case 'config':
+        progress.config.status = meta.status || 'completed';
+        progress.config.autoSync = (typeof meta.autoSync !== 'undefined') ? meta.autoSync : progress.config.autoSync;
+        progress.config.savedAt = meta.savedAt || new Date().toISOString();
+        break;
+      default:
+        // noop
+        break;
+    }
+    // update completedSteps array
+    const idx = progress.completedSteps.indexOf(stepName);
+    if( idx === -1 && (progress[stepName] && progress[stepName].status && progress[stepName].status !== 'pending') ){
+      progress.completedSteps.push(stepName);
+    }
+    setSetupWizardProgress(progress);
+    return progress;
+  }catch(e){
+    Logger.log('markSetupStepCompleted error: ' + e.toString());
+    return null;
+  }
+}
+
+function clearSubscriptionProgress(){
+  try{
+    const progress = getSetupWizardProgress();
+    progress.subscription = { status: 'pending', startedAt: null, activatedAt: null };
+    if( Array.isArray(progress.completedSteps) ){
+      const idx = progress.completedSteps.indexOf('subscription');
+      if( idx !== -1 ) progress.completedSteps.splice(idx, 1);
+    }
+    setSetupWizardProgress(progress);
+    return progress;
+  }catch(e){
+    Logger.log('clearSubscriptionProgress error: ' + e.toString());
+    return null;
+  }
+}
+
+function isSetupCompleted(){
+  const progress = getSetupWizardProgress();
+  // required steps: subscription, template, config
+  return (progress.subscription && progress.subscription.status === 'active') &&
+         (progress.template && progress.template.status === 'completed') &&
+         (progress.config && progress.config.status === 'completed');
+}
+
+  /**
+   * Shows a Google Sheets UI confirmation dialog for cancelling subscription.
+   * Returns true if the user confirmed (YES), false otherwise.
+   */
+  function cancelUserSubscription(){
+    try{
+      const ui = SpreadsheetApp.getUi();
+      const result = ui.alert('Cancel Subscription', 'Are you sure you want to cancel your subscription?', ui.ButtonSet.YES_NO);
+      if (result == ui.Button.YES) {
+        let response = confirmCancelUserSubscription();
+        return response;
+      }
+    }catch(e){
+      Logger.log('cancelUserSubscription error: ' + e.toString());
+      return false;
+    }
+  }
+
+  function confirmCancelUserSubscription(){
+    clearAllUserProperties();
+    return {
+      status: true,
+      message: 'Subscription cancelled successfully'
+    };
+  }
+
+/**
+ * Server method used by client polling to check subscription state.
+ * Returns structured JSON: { success: boolean, subscribed: boolean, data: { ... } }
+ */
+function verifySubscriptionStatus(){
+  try{
+    const response = validateUserSession();
+    if( response && response.success === true && response.result && response.result.data && response.result.data.isSubscribed === true ){
+      // mark subscription step completed
+      const meta = {
+        status: 'active',
+        activatedAt: new Date().toISOString()
+      };
+      markSetupStepCompleted('subscription', meta);
+      
+      return { success: true, subscribed: true, data: response.result.data };
+    }else{
+      return { success: true, subscribed: false, data: response.result ? response.result.data : null };
+    }
+    //try{ clearSubscriptionProgress(); }catch(e){}
+    
+  }catch(e){
+    Logger.log('verifySubscriptionStatus error: ' + e.toString());
+    return { success: false, subscribed: false, error: e.toString() };
+  }
+}
+
 function checkUserSubscription(){
   const response = validateUserSession();
   if( response.success === true ){
@@ -282,12 +443,16 @@ function installTemplateInitialSetup(){
         if (!userSpreadsheet.getSheetByName(sheetName) ) {
           let copiedSheet = sourceSheet.copyTo(userSpreadsheet);
           copiedSheet.setName(sheetName);
+          reApplyFormulaToSpreadsheet(sheetName);
         }
       });
 
       // Active Start Here sheet
       SpreadsheetApp.getActive().getSheetByName(USER_START_HERE_SHEET).activate();
+      SpreadsheetApp.flush();
     }
+    // mark template step completed
+    try{ markSetupStepCompleted('template', { status: 'completed', installedAt: new Date().toISOString() }); }catch(e){}
     return {
       status: true,
       message: "Template(s) installed successfully"
@@ -328,19 +493,11 @@ function saveConfiguration(data){
       });
       PropertiesService.getUserProperties().setProperty("AUTO_SYNC_STATUS", false);
     }
-    /*if( data.sheetEditInstant === true ){
-      triggers.forEach(trigger => {
-        if (trigger.getHandlerFunction() === 'handleOnEdit') {
-          ScriptApp.deleteTrigger(trigger);
-        }
-      });
 
-      const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
-      ScriptApp.newTrigger('handleOnEdit')
-        .forSpreadsheet(spreadsheetId)
-        .onEdit()
-        .create();
-    }*/
+    setupInstallableTrigger();
+
+    // mark config step completed
+    try{ markSetupStepCompleted('config', { status: 'completed', autoSync: data.autoSync, savedAt: new Date().toISOString() }); }catch(e){}
     return {
       status: true,
       message: "Saved Successfully"
@@ -352,6 +509,22 @@ function saveConfiguration(data){
       message: "Something went wrong, please try again."
     }
   }
+}
+
+function setupInstallableTrigger(){
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // 1. Avoid duplicate triggers
+  const triggers = ScriptApp.getProjectTriggers();
+  triggers.forEach(trigger => {
+    if (trigger.getHandlerFunction() === 'handleAddonEdit') {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
+  // 2. Create the installable onEdit trigger
+  ScriptApp.newTrigger('handleAddonEdit')
+    .forSpreadsheet(ss)
+    .onEdit()
+    .create();
 }
 
 function toggleAutoSyncSetting( status ){
@@ -454,6 +627,8 @@ function runThefinUPlaidAutoSync(){
             );
           }
         });
+        populateNetWorth();
+        populateJointNetWorth();
       }
     }
     MailApp.sendEmail(
@@ -701,7 +876,8 @@ function linkAccountDataToSpreadsheet(account_id) {
         linked_date: getTodayDateTime()
       }
     );
-    reApplyFormulaToSpreadsheet();
+    SpreadsheetApp.flush();
+    //reApplyFormulaToSpreadsheet();
     // Update flag to 'COMPLETED'
     PropertiesService.getUserProperties().setProperty('TASK_STATUS', 'COMPLETED');
     PropertiesService.getUserProperties().setProperty('LINK_ACCOUNT_ID', '');
@@ -752,155 +928,159 @@ function deleteTriggerByFunction(functionName) {
   }
 }
 
-function reApplyFormulaToSpreadsheet(){
-  let transactionSheet = UserSpreadsheet.getSheetByName('Transactions');
-  if( transactionSheet ){
-    if( transactionSheet.getLastRow() > 2 ){
-      var spreadsheet = UserSpreadsheet;
-      let formulaSheets = [ USER_DEFINITION_SHEET, USER_MONTHLY_BUDGET_SHEET, USER_JOINT_MONTHLY_BUDGET_SHEET, USER_YEARLY_BUDGET_SHEET, USER_JOINT_YEARLY_BUDGET_SHEET, USER_BUDGET_MAKER_SHEET, USER_TRANSACTIONS_SHEET ];
-      formulaSheets.forEach( function(item){
-        switch(item){
-          case USER_TRANSACTIONS_SHEET:
-            if (spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET)) {
-              spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET).getRange("P1").setFormula('=ARRAYFORMULA({"Period";EoMonth(Indirect("B2:B"&Definition!I3),-1)+1})'); // Set the formula
-              spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET).getRange("O1").setFormula('=ARRAYFORMULA({"Type";iferror(vlookup(INDIRECT("d2:d"&Definition!I3),Indirect(Definition!P2),Definition!C7,0),"Expense")})');
-              spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET).getRange("N1").setFormula('=ARRAYFORMULA({"Group";iferror(vlookup(INDIRECT("d2:d"&Definition!I3),Indirect(Definition!P2),Definition!C6,0),"NotGrouped")})');
-            }
-          case USER_DEFINITION_SHEET:
-            if (spreadsheet.getSheetByName(USER_DEFINITION_SHEET)) {
-              spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2").setFormula('=ARRAYFORMULA(UNIQUE(YEAR(INDIRECT(P9))))'); // Set the formula
-              spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("S2").setFormula('=sort(unique(ARRAYFORMULA(Date(Year(Indirect(P4)),MONTH(Indirect(P4)),1))),1,True)'); // Set the formula
-              spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("V1").setFormula("='Yearly Budget'!E2"); // Set the formula
-            }
-          break;
-          case USER_BUDGET_MAKER_SHEET:
-            if (spreadsheet.getSheetByName(USER_BUDGET_MAKER_SHEET)) {
-              spreadsheet.getSheetByName(USER_BUDGET_MAKER_SHEET).getRange("D7").setFormula('=ARRAYFORMULA(if(Indirect("$E$7:$E$"&Definition!M13)="","",round(Indirect("$E$7:$E$"&Definition!M13)/12,2)))'); // Set the formula
-              spreadsheet.getSheetByName(USER_BUDGET_MAKER_SHEET).getRange("F7").setFormula('=ARRAYFORMULA(if(Indirect("J$7:$J$"&Definition!M13)=0,"",Indirect("J$7:$J$"&Definition!M13)*$J$2/$J$49))'); // Set the formula
-              spreadsheet.getSheetByName(USER_BUDGET_MAKER_SHEET).getRange("G7").setFormula('=ArrayFormula(If(Indirect("F$7:$F$"&Definition!M13)="","",Indirect("E$7:$E$"&Definition!M13)-Indirect("F$7:$F$"&Definition!M13)))'); // Set the formula
-            }
-          break;
-          case USER_MONTHLY_BUDGET_SHEET:
-            if (spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET)) {
-              // Get cell E2
-              let cell = spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET).getRange("C2");
-              // Clear existing data validation and content
-              cell.clearDataValidations();
-              cell.clearContent();
-              // Get the named range "Year"
-              let periodRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("S2:S1000");
-              // Get values from the Year range and filter out empty/invalid values
-              let periodValues = periodRange.getValues().flat().filter(function(value) {
-                return value && (typeof value === 'string' || !isNaN(value));
-              });
-              if (periodValues.length === 0) {
-                Logger.log("Error: No valid period values found in the 'Period' range (" + periodRange.getA1Notation() + ").");
-                return;
-              }
-              // Create data validation rule using the full Year range
-              var rule = SpreadsheetApp.newDataValidation()
-                .requireValueInRange(periodRange, true) // Use full Year range
-                .setAllowInvalid(false) // Reject invalid inputs
-                .build();
-              // Apply the data validation rule to E2
-              cell.setDataValidation(rule);
-              // Set the default value to the first valid value
-              cell.setValue(periodValues[0]);
-              spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET).getRange("E4").setFormula('=Definition!AC24'); // Set the formula
-            }
-          break;
-          case USER_JOINT_MONTHLY_BUDGET_SHEET:
-            if (spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET)) {
-            // Get cell E2
-              let cell = spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET).getRange("C2");
-              // Clear existing data validation and content
-              cell.clearDataValidations();
-              cell.clearContent();
-              // Get the named range "Year"
-              let periodRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("S2:S1000");
-              // Get values from the Year range and filter out empty/invalid values
-              let periodValues = periodRange.getValues().flat().filter(function(value) {
-                return value && (typeof value === 'string' || !isNaN(value));
-              });
-              if (periodValues.length === 0) {
-                Logger.log("Error: No valid period values found in the 'Period' range (" + periodRange.getA1Notation() + ").");
-                return;
-              }
-              // Create data validation rule using the full Year range
-              var rule = SpreadsheetApp.newDataValidation()
-                .requireValueInRange(periodRange, true) // Use full Year range
-                .setAllowInvalid(false) // Reject invalid inputs
-                .build();
-              // Apply the data validation rule to E2
-              cell.setDataValidation(rule);
-              // Set the default value to the first valid value
-              cell.setValue(periodValues[0]);
-              spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET).getRange("E4").setFormula('=Definition!AD24'); // Set the formula
-              spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET).getRange("B5").setFormula('=Definition!AD5'); // Set the formula
-            }
-          break;
-          case USER_YEARLY_BUDGET_SHEET:
-            if (spreadsheet.getSheetByName(USER_YEARLY_BUDGET_SHEET)) {
-              // Get cell E2
-              let cell = spreadsheet.getSheetByName(USER_YEARLY_BUDGET_SHEET).getRange("E2");
-              // Clear existing data validation and content
-              cell.clearDataValidations();
-              cell.clearContent();
-              // Get the named range "Year"
-              let yearRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2:R1000");
-              // Get values from the Year range and filter out empty/invalid values
-              let yearValues = yearRange.getValues().flat().filter(function(value) {
-                return value && !isNaN(value) && String(value).match(/^\d{4}$/); // Ensure valid 4-digit years
-              });
-              if (yearValues.length === 0) {
-                Logger.log("Error: No valid 4-digit year values found in the 'Year' range (" + yearRange.getA1Notation() + ").");
-                return;
-              }
-              // Create data validation rule using the full Year range
-              var rule = SpreadsheetApp.newDataValidation()
-                .requireValueInRange(yearRange, true) // Use full Year range
-                .setAllowInvalid(false) // Reject invalid inputs
-                .build();
-              // Apply the data validation rule to E2
-              cell.setDataValidation(rule);
-              // Set the default value to the first valid value
-              cell.setValue(yearValues[0]);
-              spreadsheet.getSheetByName(USER_YEARLY_BUDGET_SHEET).getRange("B6:D6").setFormula('=Definition!AC3'); // Set the formula
-
-            }
-          break;
-          case USER_JOINT_YEARLY_BUDGET_SHEET:
-            if (spreadsheet.getSheetByName(USER_JOINT_YEARLY_BUDGET_SHEET)) {
-              // Get cell E2
-              let cell = spreadsheet.getSheetByName(USER_JOINT_YEARLY_BUDGET_SHEET).getRange("D2");
-              // Clear existing data validation and content
-              cell.clearDataValidations();
-              cell.clearContent();
-              // Get the named range "Year"
-              let yearRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2:R1000");
-              // Get values from the Year range and filter out empty/invalid values
-              let yearValues = yearRange.getValues().flat().filter(function(value) {
-                return value && !isNaN(value) && String(value).match(/^\d{4}$/); // Ensure valid 4-digit years
-              });
-              if (yearValues.length === 0) {
-                Logger.log("Error: No valid 4-digit year values found in the 'Year' range (" + yearRange.getA1Notation() + ").");
-                return;
-              }
-              // Create data validation rule using the full Year range
-              var rule = SpreadsheetApp.newDataValidation()
-                .requireValueInRange(yearRange, true) // Use full Year range
-                .setAllowInvalid(false) // Reject invalid inputs
-                .build();
-              // Apply the data validation rule to E2
-              cell.setDataValidation(rule);
-              // Set the default value to the first valid value
-              cell.setValue(yearValues[0]);
-              spreadsheet.getSheetByName(USER_JOINT_YEARLY_BUDGET_SHEET).getRange("B5:C5").setFormula('=Definition!AD3'); // Set the formula
-            }
-          break;
+function reApplyFormulaToSpreadsheet(item){
+  const spreadsheet = UserSpreadsheet;
+  switch(item){
+    case USER_TRANSACTIONS_SHEET:
+      if (spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET)) {
+        spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET).getRange("P1").setFormula('=ARRAYFORMULA({"Period";EoMonth(Indirect("B2:B"&Definition!I3),-1)+1})'); // Set the formula
+        spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET).getRange("O1").setFormula('=ARRAYFORMULA({"Type";iferror(vlookup(INDIRECT("d2:d"&Definition!I3),Indirect(Definition!P2),Definition!C7,0),"Expense")})');
+        spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET).getRange("N1").setFormula('=ARRAYFORMULA({"Group";iferror(vlookup(INDIRECT("d2:d"&Definition!I3),Indirect(Definition!P2),Definition!C6,0),"NotGrouped")})');
+      }
+    case USER_DEFINITION_SHEET:
+      if (spreadsheet.getSheetByName(USER_DEFINITION_SHEET)) {
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2").setFormula('=ARRAYFORMULA(UNIQUE(YEAR(INDIRECT(P9))))'); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("S2").setFormula('=sort(unique(ARRAYFORMULA(Date(Year(Indirect(P4)),MONTH(Indirect(P4)),1))),1,True)'); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("V1").setFormula("='Yearly Budget'!E2"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("X1").setFormula("='Joint Yearly Budget'!D2"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC2").setFormula("='Yearly Budget'!E2"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC4").setFormula("='Monthly Budget'!C2"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD2").setFormula("='Joint Yearly Budget'!D2"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD4").setFormula("='Joint Monthly Budget'!C2"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC10").setFormula("=IFNA(INDEX('Monthly Budget'!E:E,MATCH('Income','Monthly Budget'!B:B,0)),0)"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC10").setFormula("=IFNA(INDEX('Monthly Budget'!E:E,MATCH('Income','Monthly Budget'!B:B,0)),0)"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC11").setFormula("=IFNA(INDEX('Monthly Budget'!E:E,MATCH('Expense','Monthly Budget'!B:B,0)),0)"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC11").setFormula("=IFNA(INDEX('Monthly Budget'!E:E,MATCH('Expense','Monthly Budget'!B:B,0)),0)"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD10").setFormula("=IFNA(INDEX('Joint Monthly Budget'!F:F,MATCH('Income','Joint Monthly Budget'!B:B,0)+2),0)"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD10").setFormula("=IFNA(INDEX('Joint Monthly Budget'!F:F,MATCH('Income','Joint Monthly Budget'!B:B,0)+2),0)"); // Set the formula
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD11").setFormula("=IFNA(INDEX('Joint Monthly Budget'!F:F,MATCH('Expense','Joint Monthly Budget'!B:B,0)+2),0)"); // Set the formula
+      }
+    break;
+    case USER_BUDGET_MAKER_SHEET:
+      if (spreadsheet.getSheetByName(USER_BUDGET_MAKER_SHEET)) {
+        spreadsheet.getSheetByName(USER_BUDGET_MAKER_SHEET).getRange("D7").setFormula('=ARRAYFORMULA(if(Indirect("$E$7:$E$"&Definition!M13)="","",round(Indirect("$E$7:$E$"&Definition!M13)/12,2)))'); // Set the formula
+        spreadsheet.getSheetByName(USER_BUDGET_MAKER_SHEET).getRange("F7").setFormula('=ARRAYFORMULA(if(Indirect("J$7:$J$"&Definition!M13)=0,"",Indirect("J$7:$J$"&Definition!M13)*$J$2/$J$49))'); // Set the formula
+        spreadsheet.getSheetByName(USER_BUDGET_MAKER_SHEET).getRange("G7").setFormula('=ArrayFormula(If(Indirect("F$7:$F$"&Definition!M13)="","",Indirect("E$7:$E$"&Definition!M13)-Indirect("F$7:$F$"&Definition!M13)))'); // Set the formula
+      }
+    break;
+    case USER_MONTHLY_BUDGET_SHEET:
+      if (spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET)) {
+        // Get cell E2
+        let cell = spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET).getRange("C2");
+        // Clear existing data validation and content
+        cell.clearDataValidations();
+        cell.clearContent();
+        // Get the named range "Year"
+        let periodRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("S2:S1000");
+        // Get values from the Year range and filter out empty/invalid values
+        let periodValues = periodRange.getValues().flat().filter(function(value) {
+          return value && (typeof value === 'string' || !isNaN(value));
+        });
+        if (periodValues.length === 0) {
+          Logger.log("Error: No valid period values found in the 'Period' range (" + periodRange.getA1Notation() + ").");
+          return;
         }
-      });
-    }
+        // Create data validation rule using the full Year range
+        var rule = SpreadsheetApp.newDataValidation()
+          .requireValueInRange(periodRange, true) // Use full Year range
+          .setAllowInvalid(false) // Reject invalid inputs
+          .build();
+        // Apply the data validation rule to E2
+        cell.setDataValidation(rule);
+        // Set the default value to the first valid value
+        cell.setValue(periodValues[0]);
+        spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET).getRange("E4").setFormula('=Definition!AC24'); // Set the formula
+      }
+    break;
+    case USER_JOINT_MONTHLY_BUDGET_SHEET:
+      if (spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET)) {
+      // Get cell E2
+        let cell = spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET).getRange("C2");
+        // Clear existing data validation and content
+        cell.clearDataValidations();
+        cell.clearContent();
+        // Get the named range "Year"
+        let periodRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("S2:S1000");
+        // Get values from the Year range and filter out empty/invalid values
+        let periodValues = periodRange.getValues().flat().filter(function(value) {
+          return value && (typeof value === 'string' || !isNaN(value));
+        });
+        if (periodValues.length === 0) {
+          Logger.log("Error: No valid period values found in the 'Period' range (" + periodRange.getA1Notation() + ").");
+          return;
+        }
+        // Create data validation rule using the full Year range
+        var rule = SpreadsheetApp.newDataValidation()
+          .requireValueInRange(periodRange, true) // Use full Year range
+          .setAllowInvalid(false) // Reject invalid inputs
+          .build();
+        // Apply the data validation rule to E2
+        cell.setDataValidation(rule);
+        // Set the default value to the first valid value
+        cell.setValue(periodValues[0]);
+        spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET).getRange("E4").setFormula('=Definition!AD24'); // Set the formula
+        spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET).getRange("B5").setFormula('=Definition!AD5'); // Set the formula
+      }
+    break;
+    case USER_YEARLY_BUDGET_SHEET:
+      if (spreadsheet.getSheetByName(USER_YEARLY_BUDGET_SHEET)) {
+        // Get cell E2
+        let cell = spreadsheet.getSheetByName(USER_YEARLY_BUDGET_SHEET).getRange("E2");
+        // Clear existing data validation and content
+        cell.clearDataValidations();
+        cell.clearContent();
+        // Get the named range "Year"
+        let yearRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2:R1000");
+        // Get values from the Year range and filter out empty/invalid values
+        let yearValues = yearRange.getValues().flat().filter(function(value) {
+          return value && !isNaN(value) && String(value).match(/^\d{4}$/); // Ensure valid 4-digit years
+        });
+        if (yearValues.length === 0) {
+          Logger.log("Error: No valid 4-digit year values found in the 'Year' range (" + yearRange.getA1Notation() + ").");
+          return;
+        }
+        // Create data validation rule using the full Year range
+        var rule = SpreadsheetApp.newDataValidation()
+          .requireValueInRange(yearRange, true) // Use full Year range
+          .setAllowInvalid(false) // Reject invalid inputs
+          .build();
+        // Apply the data validation rule to E2
+        cell.setDataValidation(rule);
+        // Set the default value to the first valid value
+        cell.setValue(yearValues[0]);
+        spreadsheet.getSheetByName(USER_YEARLY_BUDGET_SHEET).getRange("B6:D6").setFormula('=Definition!AC3'); // Set the formula
+
+      }
+    break;
+    case USER_JOINT_YEARLY_BUDGET_SHEET:
+      if (spreadsheet.getSheetByName(USER_JOINT_YEARLY_BUDGET_SHEET)) {
+        // Get cell E2
+        let cell = spreadsheet.getSheetByName(USER_JOINT_YEARLY_BUDGET_SHEET).getRange("D2");
+        // Clear existing data validation and content
+        cell.clearDataValidations();
+        cell.clearContent();
+        // Get the named range "Year"
+        let yearRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2:R1000");
+        // Get values from the Year range and filter out empty/invalid values
+        let yearValues = yearRange.getValues().flat().filter(function(value) {
+          return value && !isNaN(value) && String(value).match(/^\d{4}$/); // Ensure valid 4-digit years
+        });
+        if (yearValues.length === 0) {
+          Logger.log("Error: No valid 4-digit year values found in the 'Year' range (" + yearRange.getA1Notation() + ").");
+          return;
+        }
+        // Create data validation rule using the full Year range
+        var rule = SpreadsheetApp.newDataValidation()
+          .requireValueInRange(yearRange, true) // Use full Year range
+          .setAllowInvalid(false) // Reject invalid inputs
+          .build();
+        // Apply the data validation rule to E2
+        cell.setDataValidation(rule);
+        // Set the default value to the first valid value
+        cell.setValue(yearValues[0]);
+        spreadsheet.getSheetByName(USER_JOINT_YEARLY_BUDGET_SHEET).getRange("B5:C5").setFormula('=Definition!AD3'); // Set the formula
+      }
+    break;
   }
 }
 
@@ -924,13 +1104,10 @@ function installFeaturedTemplates(){
           if (!userSpreadsheet.getSheetByName(sheetName) ) {
             let copiedSheet = sourceSheet.copyTo(userSpreadsheet);
             copiedSheet.setName(sheetName);
-          }
-
-          if( sheetName === USER_DEFINITION_SHEET ){
-            hideSheetByName(sheetName);
-            protectSheetByName(sheetName);
+            reApplyFormulaToSpreadsheet(sheetName);
           }
         });
+        reApplyFormulaToSpreadsheet(USER_DEFINITION_SHEET);
       }
     }
   }
@@ -1153,6 +1330,10 @@ function addManualAccountBalanceHistoryData( data ){
         }
       }
     }
+    const range = sheet.getDataRange(); 
+    range.sort({ column: 2, ascending: false });
+    populateNetWorth();
+    populateJointNetWorth();
     return {
       status: true,
       message: "Balance history added successfully."
@@ -1192,8 +1373,43 @@ function test(){
   Logger.log("Done");
 }
 
-function resetAccountOwnerCell(accountName){
-  if (accountName == "") {
-    return;
+/**
+ * Clears every single key-value pair in the UserProperties store.
+ * Warning: This is irreversible.
+ */
+function clearAllUserProperties() {
+  try {
+    const userProperties = PropertiesService.getUserProperties();
+    
+    // Get keys before deleting (for logging purposes)
+    const keys = userProperties.getKeys();
+    
+    // Perform the wipe
+    userProperties.deleteAllProperties();
+    
+    return {
+      success: true,
+      message: `Successfully cleared ${keys.length} data points. The app has been reset.`
+    };
+  } catch (e) {
+    return {
+      success: false,
+      message: "Failed to clear data: " + e.message
+    };
+  }
+}
+
+function getAccountNameByAccountId(account_id){
+  try{
+    const response = getAppPlaidAccountById(account_id);
+    //Logger.log( JSON.stringify(response, null, 2) );
+    if( response.success === true ){
+      return response.result.name;
+    }else{
+      return null;
+    }
+  }catch(error){
+    Logger.log(`Error while installTemplateInitialSetup: ${error.message}`);
+    return null;
   }
 }
