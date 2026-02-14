@@ -63,49 +63,41 @@ function confirmPopulateReportToSheets(){
 
 function startGenerationOfMonthlyBudget(){
   try{
-    SpreadsheetApp.getUi().alert('Monthly budget generation has started. Do not change anything until the process completes.');
+    //SpreadsheetApp.getUi().alert('Monthly budget generation has started. Do not change anything until the process completes.');
     populateMonthlyBudget();
   }catch(error){
     SpreadsheetApp.getUi().alert('Something went wrong while generating monthly budget. Please try again.');
     Logger.log("Error in startGenerationOfMonthlyBudget: " + error.toString());
-  }finally{
-    SpreadsheetApp.getUi().alert('Monthly budget generated successfully.');
   }
 }
 
 function startGenerationOfJointMonthlyBudget(){
   try{
-    SpreadsheetApp.getUi().alert('Joint monthly budget generation has started. Do not change anything until the process completes.');
+    //SpreadsheetApp.getUi().alert('Joint monthly budget generation has started. Do not change anything until the process completes.');
     populateJointMonthlyBudget();
   }catch(error){
     SpreadsheetApp.getUi().alert('Something went wrong while generating joint monthly budget. Please try again.');
     Logger.log("Error in startGenerationOfJointMonthlyBudget: " + error.toString());
-  }finally{
-    SpreadsheetApp.getUi().alert('Joint monthly budget generated successfully.');
   }
 }
 
 function startGenerationOfYearlyBudget(){
   try{
-    SpreadsheetApp.getUi().alert('Yearly budget generation has started. Do not change anything until the process completes.');
+    //SpreadsheetApp.getUi().alert('Yearly budget generation has started. Do not change anything until the process completes.');
     populateYearlyBudget();
   }catch(error){
     SpreadsheetApp.getUi().alert('Something went wrong while generating yearly budget. Please try again.');
     Logger.log("Error in startGenerationOfYearlyBudget: " + error.toString());
-  }finally{
-    SpreadsheetApp.getUi().alert('Yearly budget generated successfully.');
   }
 }
 
 function startGenerationOfJointYearlyBudget(){
   try{
-    SpreadsheetApp.getUi().alert('Joint yearly budget generation has started. Do not change anything until the process completes.');
+    //SpreadsheetApp.getUi().alert('Joint yearly budget generation has started. Do not change anything until the process completes.');
     populateJointYearlyBudget();
   }catch(error){
     SpreadsheetApp.getUi().alert('Something went wrong while generating joint yearly budget. Please try again.');
     Logger.log("Error in startGenerationOfJointYearlyBudget: " + error.toString());
-  }finally{
-    SpreadsheetApp.getUi().alert('Joint yearly budget generated successfully.');
   }
 }
 

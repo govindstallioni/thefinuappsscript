@@ -64,11 +64,9 @@ function loadConnectedAccounts() {
     }
   }).withFailureHandler(err => {
       accountListElement.innerHTML = `
-        <p class="text-red-600 py-8">
-          Sorry, couldn't load accounts<br>
-          <span class="text-sm">(${err.message || 'Network error'})</span>
-        </p>
-      `;
+      <p class="text-red-600 py-8">Something wrong, Please try again.<br>
+        <span class="text-sm">(${err.message || 'Network error'})</span>
+      </p>`;
       accountListElement.classList.remove('hidden');
       loaderElement.classList.add('hidden');
   }).getConnectedPlaidAccountsTemplate();   // ← your server function
@@ -94,11 +92,9 @@ function viewAccountDetail(account_id) {
     loaderElement.classList.add('hidden');
   }).withFailureHandler(err => {
       accountDetailElement.innerHTML = `
-        <p class="text-red-600 py-8">
-          Sorry, couldn't load accounts<br>
-          <span class="text-sm">(${err.message || 'Network error'})</span>
-        </p>
-      `;
+      <p class="text-red-600 py-8">Something wrong, Please try again.<br>
+        <span class="text-sm">(${err.message || 'Network error'})</span>
+      </p>`;
       accountDetailElement.classList.remove('hidden');
       loaderElement.classList.add('hidden');
   }).getAccountDetailsTemplate(account_id);   // ← your server function
@@ -126,11 +122,9 @@ function renameAccount( account_id, account_name ){
     loaderElement.classList.add('hidden');
   }).withFailureHandler(err => {
       renameAccountElement.innerHTML = `
-        <p class="text-red-600 py-8">
-          Sorry, couldn't load accounts<br>
-          <span class="text-sm">(${err.message || 'Network error'})</span>
-        </p>
-      `;
+      <p class="text-red-600 py-8">Something wrong, Please try again.<br>
+        <span class="text-sm">(${err.message || 'Network error'})</span>
+      </p>`;
       renameAccountElement.classList.remove('hidden');
       loaderElement.classList.add('hidden');
   }).getRenameAccountTemplate( account_id, account_name );
@@ -218,47 +212,69 @@ function removeAccount(account_id) {
   }).removeAccountFromList(account_id);
 }
 
-function linkAccountToTemplate(account_id, btnEl){
+function linkAccountToTemplate(accountId, btnEl) {
   btnEl.disabled = true;
-  btnEl.textContent = "Linking..";
-  btnEl.disabled = true;
-  google.script.run.withSuccessHandler(function(msg) {
-    // Start polling the status every 5 seconds
-    const interval = setInterval(function() {
-      google.script.run.withSuccessHandler(function(status) {
-        if (status === 'COMPLETED') {
-          btnEl.textContent = "Please wait..";
-          clearInterval(interval);
-          viewAccountDetail(account_id);
-        } else if (status.indexOf('ERROR') > -1) {
-          clearInterval(interval);
-          alert("Something went wrong: " + status);
-          viewAccountDetail(account_id);
-        }
-      }).checkTaskStatus();
-    }, 5000);
-  }).confirmLinkAccountToTemplate(account_id);
+  btnEl.textContent = 'Please wait..';
+  google.script.run.withSuccessHandler(function (response) {
+    if( response === true ){
+      btnEl.textContent = "Linking..";
+      const interval = setInterval(function () {
+        google.script.run.withSuccessHandler(function (status) {
+          if (status === "COMPLETED") {
+            clearInterval(interval);
+            btnEl.textContent = "Linked";
+            google.script.run.resetTaskStatus();
+            viewAccountDetail(accountId);
+            alert("Account linked successfully.");
+          } else if (status.startsWith("ERROR")) {
+            google.script.run.resetTaskStatus();
+            clearInterval(interval);
+            btnEl.textContent = "Retry";
+            btnEl.disabled = false;
+            alert(status);
+          }
+        }).checkTaskStatus();
+      }, 5000);
+    }else{
+      btnEl.disabled = false;
+      btnEl.textContent = 'Link to Template';
+    }
+  }).withFailureHandler(function (err) {
+    btnEl.disabled = false;
+    btnEl.textContent = "Retry";
+    alert(err.message);
+  }).confirmLinkAccountToTemplate(accountId);
 }
 
 function unlinkAccountFromTemplate(account_id, btnEl){
   btnEl.disabled = true;
-  btnEl.textContent = "Unlinking..";
-  btnEl.disabled = true;
-  google.script.run.withSuccessHandler(function(msg) {
-    // Start polling the status every 5 seconds
-    const interval = setInterval(function() {
-      google.script.run.withSuccessHandler(function(status) {
-        if (status === 'COMPLETED') {
-          btnEl.textContent = "Please wait..";
-          clearInterval(interval);
-          viewAccountDetail(account_id);
-        } else if (status.indexOf('ERROR') > -1) {
-          clearInterval(interval);
-          alert("Something went wrong: " + status);
-          viewAccountDetail(account_id);
-        }
-      }).checkTaskStatus();
-    }, 5000);
+  btnEl.textContent = "Please wait..";
+  google.script.run.withSuccessHandler(function(response) {
+    if( response === true ){
+      btnEl.textContent = "Unlinking..";
+      const interval = setInterval(function() {
+        google.script.run.withSuccessHandler(function(status) {
+          if (status === 'COMPLETED') {
+            clearInterval(interval);
+            btnEl.textContent = "Unlinked";
+            viewAccountDetail(account_id);
+            alert("Account unlinked successfully.");
+          } else if (status.startsWith("ERROR")) {
+            clearInterval(interval);
+            btnEl.textContent = "Retry";
+            btnEl.disabled = false;
+            alert(status);
+          }
+        }).checkTaskStatus();
+      }, 5000);
+    }else{
+      btnEl.disabled = false;
+      btnEl.textContent = 'Unlink from Spreadsheet';
+    }
+  }).withFailureHandler(function (err) {
+    btnEl.disabled = false;
+    btnEl.textContent = "Retry";
+    alert(err.message);
   }).confirmUnlinkAccountFromTemplate(account_id);
 }
 
@@ -285,11 +301,9 @@ function addNewBalanceHistory(btnEle){
     renameAccountElement.classList.add('hidden'); 
   }).withFailureHandler(function(error){
     balanceHistoryElement.innerHTML = `
-        <p class="text-red-600 py-8">
-          Sorry, couldn't load form<br>
-          <span class="text-sm">(${error.message || 'Network error'})</span>
-        </p>
-      `;
+    <p class="text-red-600 py-8">Something wrong, Please try again.<br>
+      <span class="text-sm">(${error.message || 'Network error'})</span>
+    </p>`;
     balanceHistoryElement.classList.remove('hidden');
     loaderEle.classList.add('hidden');
   }).showAddBalanceHistoryFormTemplate();
@@ -395,7 +409,7 @@ function generateFinancialReport(btnEle){
     btnEle.disabled = false;
     btnEle.textContent = "Generate Report";
   }).withFailureHandler(function(error){
-    alert("Failed: " + (error.message || "Unknown error"));
+    alert("Failed: " + (error.message || "Unknown error, Please reopen the app."));
     btnEle.disabled = false;
     btnEle.textContent = "Generate Financial Report";
   }).generateFinancialReport();

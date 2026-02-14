@@ -66,14 +66,13 @@ function handleAddonEdit(e){
   const row = range.getRow();
   const newValue = e.value;
   const oldValue = e.oldValue;
+  const editCell = range.getA1Notation();
   // Get row data
   const rowData = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
   if( sheet.getName() === USER_ACCOUNTS_SHEET ){
     if( column === 6 || column === 8 || column === 10 || column === 11 ){
-      if( rowData && rowData[5] !=='' && rowData[7] !=='' && rowData[9] !== '' ){
-        populateNetWorth();
-        populateJointNetWorth();
-      }
+      populateNetWorth();
+      populateJointNetWorth();
     }
   }
   if( sheet.getName() === USER_BALANCE_HISTORY_SHEET ){
@@ -83,6 +82,18 @@ function handleAddonEdit(e){
         populateJointNetWorth();
       }
     }
+  }
+  if( sheet.getName() === USER_MONTHLY_BUDGET_SHEET && editCell === 'C2' ){
+    startGenerationOfMonthlyBudget();
+  }
+  if( sheet.getName() === USER_YEARLY_BUDGET_SHEET && editCell === 'E2' ){
+    startGenerationOfYearlyBudget();
+  }
+  if( sheet.getName() === USER_JOINT_MONTHLY_BUDGET_SHEET && editCell === 'C2' ){
+    startGenerationOfJointMonthlyBudget();
+  }
+  if( sheet.getName() === USER_JOINT_YEARLY_BUDGET_SHEET && editCell === 'D2' ){
+    startGenerationOfJointYearlyBudget();
   }
 }
 
@@ -371,7 +382,12 @@ function isSetupCompleted(){
       const result = ui.alert('Cancel Subscription', 'Are you sure you want to cancel your subscription?', ui.ButtonSet.YES_NO);
       if (result == ui.Button.YES) {
         let response = confirmCancelUserSubscription();
-        return response;
+        if( response.success === true ){
+          deleteAllSheetsAndRecreate();
+          clearAllUserProperties();
+          return true;
+        }
+        return false;
       }
     }catch(e){
       Logger.log('cancelUserSubscription error: ' + e.toString());
@@ -379,13 +395,7 @@ function isSetupCompleted(){
     }
   }
 
-  function confirmCancelUserSubscription(){
-    clearAllUserProperties();
-    return {
-      status: true,
-      message: 'Subscription cancelled successfully'
-    };
-  }
+ 
 
 /**
  * Server method used by client polling to check subscription state.
@@ -649,7 +659,7 @@ function runThefinUPlaidAutoSync(){
 }
 
 function handleOnEdit(e){
-  if (!e || !e.range) return;
+  //if (!e || !e.range) return;
   const range = e.range;
   const sheet = range.getSheet();
   const column = range.getColumn();
@@ -662,6 +672,7 @@ function handleOnEdit(e){
 
   const defSheet = UserSpreadsheet.getSheetByName(USER_DEFINITION_SHEET);
 
+  Logger.log( "sheet: "+ sheet.getName() + ' cell: '+ editCell +'range: '+ range);
   if( sheet.getName() === USER_BALANCE_HISTORY_SHEET ){
     let dateCol = 2;
     let accountsCol = 3;
@@ -816,19 +827,76 @@ function confirmLinkAccountToTemplate( accountId ){
     );
 
     if (result == SpreadsheetApp.getUi().Button.YES) {
-      SpreadsheetApp.getUi().alert('The process takes few minutes to be completed. Please wait do not change anything untill the process complete.');
+      //SpreadsheetApp.getUi().alert('The process takes few minutes to be completed. Please wait do not change anything untill the process complete.');
       userProperties.setProperty('TASK_STATUS', 'PROCESSING');
       userProperties.setProperty('LINK_ACCOUNT_ID', accountId);
-      linkAccountDataToSpreadsheet(accountId);
+      //linkAccountDataToSpreadsheet(accountId);
+      ensureTrigger('processLinkAccountTask');
       return true;
     }else{
-      SpreadsheetApp.getUi().alert('Something went wrong, please try again.');
       return false;
     }
   }else{
     SpreadsheetApp.getUi().alert('Something went wrong, please try again.');
     return false;
   }
+}
+
+function processLinkAccountTask() {
+  const lock = LockService.getUserLock();
+  lock.waitLock(30000);
+
+  const props = PropertiesService.getUserProperties();
+  const accountId = props.getProperty('LINK_ACCOUNT_ID');
+
+  if (!accountId) return;
+
+  try {
+    // --- PLAID IMPORT PIPELINE ---
+    installFeaturedTemplates();
+    linkTransactionSheet(accountId);
+    if (checkItemProductSupport(accountId, 'investments')) {
+      linkInvestmentSheet(accountId);
+    }
+    updateAccountBalanceHistory(accountId);
+    linkAccountsSheetData(accountId);
+    updateAppAccountDetailById(accountId, {
+      is_linked: true,
+      status: true,
+      updates: false,
+      linked_date: getTodayDateTime()
+    });
+
+    reApplyFormulaToSpreadsheet();
+
+    populateNetWorth();
+    populateJointNetWorth();
+
+    SpreadsheetApp.flush();
+
+    props.setProperty('TASK_STATUS', 'COMPLETED');
+    props.deleteProperty('LINK_ACCOUNT_ID');
+
+  } catch (e) {
+    props.setProperty('TASK_STATUS', 'ERROR: ' + e.message);
+  } finally {
+    lock.releaseLock();
+    cleanupTriggers_('processLinkAccountTask');
+  }
+}
+
+function resetTaskStatus(){
+  const props = PropertiesService.getUserProperties();
+  props.deleteProperty('TASK_STATUS');
+  props.deleteProperty('LINK_ACCOUNT_ID');
+}
+
+function cleanupTriggers_(handlerName) {
+  ScriptApp.getProjectTriggers().forEach(trigger => {
+    if (trigger.getHandlerFunction() === handlerName) {
+      ScriptApp.deleteTrigger(trigger);
+    }
+  });
 }
 
 function confirmUnlinkAccountFromTemplate(accountId){
@@ -843,76 +911,51 @@ function confirmUnlinkAccountFromTemplate(accountId){
       SpreadsheetApp.getUi().ButtonSet.YES_NO);
 
   if (result == SpreadsheetApp.getUi().Button.YES) {
-    SpreadsheetApp.getUi().alert('The process takes few minutes to be completed. Please wait do not change anything untill the process complete.');
+    //SpreadsheetApp.getUi().alert('The process takes few minutes to be completed. Please wait do not change anything untill the process complete.');
     userProperties.setProperty('TASK_STATUS', 'PROCESSING');
     userProperties.setProperty('UNLINK_ACCOUNT_ID', accountId);
-    unlinkAccountDataFromSpreadsheet(accountId);
+    ensureTrigger('processUnlinkAccountTask');
+    //unlinkAccountDataFromSpreadsheet(accountId);
     return true;
+  }else{
+    return false;
   }
 }
 
-/**
- * Step 2: The actual task executed by the trigger.
- */
-function linkAccountDataToSpreadsheet(account_id) {
+function processUnlinkAccountTask() {
+  const lock = LockService.getUserLock();
+  lock.waitLock(30000);
+
+  const props = PropertiesService.getUserProperties();
+  const accountId = props.getProperty('UNLINK_ACCOUNT_ID');
+
+  if (!accountId) return;
 
   try {
-    // --- PERFORM YOUR TASK HERE (e.g., API calls, heavy data processing) ---
-    Utilities.sleep(5000); // Simulating work
-    linkTransactionSheet(account_id);
-    let support_response = checkItemProductSupport( account_id, 'investments');
-    if( support_response === true ){
-      linkInvestmentSheet(account_id);
-    }
-    updateAccountBalanceHistory(account_id);
-    linkAccountsSheetData(account_id);
-    installFeaturedTemplates();
-    updateAppAccountDetailById(
-      account_id,
-      {
-        is_linked: true,
-        status: true,
-        updates: false,
-        linked_date: getTodayDateTime()
-      }
-    );
+
+    // --- DATA CLEANUP ---
+    clearTransactionsData(accountId);
+    clearInvestmentsData(accountId);
+    clearBalanceHistoryData(accountId);
+    clearAccountData(accountId);
+    updateAppAccountDetailById(accountId, {
+      is_linked: false,
+      status: true,
+      updates: false,
+      linked_date: getTodayDateTime()
+    });
+
+    populateNetWorth();
+    populateJointNetWorth();
+
     SpreadsheetApp.flush();
-    //reApplyFormulaToSpreadsheet();
-    // Update flag to 'COMPLETED'
-    PropertiesService.getUserProperties().setProperty('TASK_STATUS', 'COMPLETED');
-    PropertiesService.getUserProperties().setProperty('LINK_ACCOUNT_ID', '');
-  } catch (err) {
-    PropertiesService.getUserProperties().setProperty('TASK_STATUS', 'ERROR: ' + err.message);
+    props.setProperty('TASK_STATUS', 'COMPLETED');
+  } catch (e) {
+    props.setProperty('TASK_STATUS', 'ERROR: ' + e.message);
   } finally {
-    SpreadsheetApp.getUi().alert('Account linked successfully.');
-  }
-
-}
-
-function unlinkAccountDataFromSpreadsheet(account_id){
-  try {
-    // --- PERFORM YOUR TASK HERE (e.g., API calls, heavy data processing) ---
-    Utilities.sleep(5000); // Simulating work
-    clearTransactionsData(account_id);
-    clearInvestmentsData(account_id);
-    clearBalanceHitoryData(account_id);
-    clearAccountData(account_id);
-    updateAppAccountDetailById(
-      account_id,
-      {
-        is_linked: false,
-        status: true,
-        updates: false,
-        linked_date: getTodayDateTime()
-      }
-    );
-    // Update flag to 'COMPLETED'
-    PropertiesService.getUserProperties().setProperty('TASK_STATUS', 'COMPLETED');
-    PropertiesService.getUserProperties().setProperty('UNLINK_ACCOUNT_ID', '');
-  } catch (err) {
-    PropertiesService.getUserProperties().setProperty('TASK_STATUS', 'ERROR: ' + err.message);
-  } finally {
-    SpreadsheetApp.getUi().alert('Account unlinked successfully.');
+    props.deleteProperty('UNLINK_ACCOUNT_ID');
+    cleanupTriggers_('processUnlinkAccountTask');
+    lock.releaseLock();
   }
 }
 
@@ -1412,4 +1455,30 @@ function getAccountNameByAccountId(account_id){
     Logger.log(`Error while installTemplateInitialSetup: ${error.message}`);
     return null;
   }
+}
+
+function deleteAllSheetsAndRecreate() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+
+  // Create a temporary sheet
+  const tempSheet = ss.insertSheet('Temp');
+
+  // Delete all existing sheets
+  sheets.forEach(sheet => ss.deleteSheet(sheet));
+
+  // Rename temp sheet
+  tempSheet.setName('Sheet1');
+}
+
+function ensureTrigger(handler) {
+  const triggers = ScriptApp.getProjectTriggers();
+
+  const existing = triggers.find(t => t.getHandlerFunction() === handler);
+  if (existing) return;
+
+  ScriptApp.newTrigger(handler)
+    .timeBased()
+    .after(1000)
+    .create();
 }

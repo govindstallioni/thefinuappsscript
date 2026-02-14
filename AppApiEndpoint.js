@@ -198,13 +198,13 @@ function updateAppAccountDetailById( accountId, data ){
  * Cancels the user's subscription by notifying the external API.
  * The API will receive the user's email in the payload.
  */
-function cancelUserSubscription(){
+function confirmCancelUserSubscription(){
   try{
-    const apiUrl = API_ENDPOINT + 'api/subscription/cancel';
+    const apiUrl = API_ENDPOINT + 'api/payment/unsubscribe';
     const payload = {
       email: UserEmail,
-      spreadsheetId: SpreadsheetApp.getActiveSpreadsheet().getId(),
-      timestamp: new Date().toISOString()
+      //spreadsheetId: SpreadsheetApp.getActiveSpreadsheet().getId(),
+      //timestamp: new Date().toISOString()
     };
 
     const options = {

@@ -55,7 +55,7 @@ function linkBalanceHistorySheetData(account_id, lastDate){
   }
 }
 
-function clearBalanceHitoryData(account_id){
+function clearBalanceHistoryData(account_id){
 
   const sheet = UserSpreadsheet.getSheetByName(USER_BALANCE_HISTORY_SHEET);
   const range = sheet.getDataRange();
