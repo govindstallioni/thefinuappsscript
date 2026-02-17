@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    :root{
+      --primary-font: 'Comfortaa', sans-serif;
+      --color_01 : #6E8277;
+      --color_02 : #37484C;
+      --color_03 : #6E434D;
+      --color_04 : #E68E68;
+      --color_05 : #EEC49F;
+      --color_06 : #E9EAD1;
+    }
+    .theme-primary { color: var(--color_02); }
+    .theme-secondary { color: var(--color_01); }
+    .theme-accent { color: var(--color_03); }
+    .theme-light { color: var(--color_04); }
+    .theme-semi-light { color: var(--color_06); }
+    .theme-bg-primary { background-color: var(--color_02); }
+    .theme-bg-secondary { background-color: var(--color_01); }
+    .theme-bg-accent { background-color: var(--color_03); }
+    .theme-bg-light { background-color: var(--color_04); }
+    .theme-bg-semi-light { background-color: var(--color_06); }
+    body { font-family: var(--primary-font); padding: 0; margin: 0; background: #f9fafb; }
+    #loader { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:9999; }
+    #loader-content {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      text-align: center;
+    }
+    .center-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+    }
+    </style>
+</head>
+      <body>
+        <div class="w-full max-w-md mx-auto">
+
+          <!-- Status badge and counts -->
+          <div id="statusDetail" class="text-sm mb-3">
+            <div class="flex items-center gap-3">
+              <div class="font-semibold">Status:</div>
+              <div id="statusBadge" class="px-2 py-1 rounded text-sm bg-yellow-50 border border-yellow-100 text-yellow-800">Pending</div>
+            </div>
+            <div id="statusCounts" class="mt-2 text-sm text-slate-600">
+              <div>Transactions: <span id="txCount">0</span></div>
+              <div>Investments: <span id="invCount">0</span></div>
+            </div>
+          </div>
+
+          <div id="log" class="text-xs text-gray-700 h-28 overflow-auto bg-white p-2 rounded border"></div>
+
+          <div id="resultPanel" class="mt-4 hidden p-2 text-sm max-h-28 overflow-auto"></div>
+          <div class="mt-4">
+            <button id="closeBtn" class="w-full bg-gray-300 text-gray-800 py-2 rounded cursor-pointer" style="display:none" onclick="closeDialog()">Close</button>
+          </div>
+        </div>
+
+        <script>
+          const accountId = '<?!= accountId ?>';
+          const logEl = document.getElementById('log');
+          const closeBtn = document.getElementById('closeBtn');
+          // progressBar removed; update textual status instead
+          const txCountEl = document.getElementById('txCount');
+          const invCountEl = document.getElementById('invCount');
+          const resultPanel = document.getElementById('resultPanel');
+
+          let pages = 0, totalTx = 0, totalInv = 0;
+
+          function appendLog(msg){
+            const now = new Date().toLocaleTimeString();
+            logEl.innerText = now + ' — ' + msg + '\n' + logEl.innerText;
+          }
+
+          // Update the status badge (pending, processing, completed, error)
+          function setStatus(state, message){
+            const badge = document.getElementById('statusBadge');
+            const counts = document.getElementById('statusCounts');
+            const tx = txCountEl.textContent || 0;
+            const inv = invCountEl.textContent || 0;
+            // reset classes
+            badge.className = 'px-2 py-1 rounded text-sm';
+            let cls = '';
+            let label = '';
+            switch((state||'').toLowerCase()){
+              case 'pending': cls = 'bg-yellow-50 border border-yellow-100 text-yellow-800'; label = 'Pending'; break;
+              case 'processing': cls = 'bg-sky-50 border border-sky-100 text-sky-800'; label = 'Processing'; break;
+              case 'completed': cls = 'bg-emerald-50 border border-emerald-100 text-emerald-800'; label = 'Completed'; break;
+              case 'error': cls = 'bg-red-50 border border-red-100 text-red-800'; label = 'Error'; break;
+              default: cls = 'bg-slate-50 border border-slate-100 text-slate-800'; label = state || 'Status';
+            }
+            badge.className += ' ' + cls;
+            // show label and optional message (do not include counts in badge)
+            let msg = label;
+            if(message) msg += ' — ' + message;
+            badge.textContent = msg;
+            // keep counts area updated too (Transactions & Investments)
+            counts.querySelector('div:nth-child(1) > span').textContent = tx;
+            counts.querySelector('div:nth-child(2) > span').textContent = inv;
+          }
+          function closeDialog(){
+            try{
+              const btn = document.getElementById('closeBtn');
+              if(btn){ btn.disabled = true; btn.textContent = 'Closing...'; }
+              // fire-and-forget showSidebar then close immediately to improve responsiveness
+              try{ 
+                google.script.run.showSidebar();
+                google.script.host.close();
+               }catch(e){                  
+               }
+            }catch(e){ try{ google.script.host.close(); }catch(e){} }
+          }
+
+          function updateCounters(){
+            txCountEl.textContent = totalTx;
+            invCountEl.textContent = totalInv;
+          }
+
+          function processPage(next_cursor){
+            pages++;
+            appendLog('Fetching page ' + (next_cursor || 'start'));
+            google.script.run.withSuccessHandler(function(resp){
+              if(!resp || !resp.success){ appendLog('No data or error: ' + (resp && resp.error)); setStatus('error', (resp && resp.error) || 'no data'); closeBtn.style.display='block'; return; }
+
+              const txObjects = (resp.added || []).concat(resp.modified || []);
+              const txBatches = [];
+              for(let i=0;i<txObjects.length;i+=100) txBatches.push(txObjects.slice(i,i+100));
+
+              function runTxBatches(index){
+                if(index >= txBatches.length){ runInvBatches(); return; }
+                appendLog('Inserting transaction batch ' + (index+1) + '/' + txBatches.length);
+                setStatus('processing');
+                google.script.run.withSuccessHandler(function(result){
+                  if(!result){ appendLog('Transaction batch returned no result'); setStatus('error','tx batch no result'); closeBtn.style.display='block'; return; }
+                  if(result.success === false){ appendLog('Transaction batch error: ' + (result.error || 'unknown')); setStatus('error', result.error || 'transaction batch error'); closeBtn.style.display='block'; return; }
+                  totalTx += result.inserted || 0;
+                  updateCounters();
+                  appendLog('Transaction batch done: inserted=' + (result.inserted||0) + ' updated=' + (result.updated||0));
+                  runTxBatches(index+1);
+                }).withFailureHandler(function(err){ appendLog('Transaction batch failed: '+err); appendLog('Error'); closeBtn.style.display='block'; }).insertTransactionBatchSafe(txBatches[index]);
+              }
+
+              const invs = resp.investments || [];
+              const invBatches = [];
+              for(let j=0;j<invs.length;j+=100) invBatches.push(invs.slice(j,j+100));
+
+              function runInvBatches(){
+                if(invBatches.length === 0){ proceedNextOrFinalize(); return; }
+                function runOne(k){
+                  if(k >= invBatches.length){ proceedNextOrFinalize(); return; }
+                  appendLog('Inserting investment batch ' + (k+1) + '/' + invBatches.length);
+                  setStatus('processing');
+                  google.script.run.withSuccessHandler(function(result){
+                    if(!result){ appendLog('Investment batch returned no result'); setStatus('error','inv batch no result'); closeBtn.style.display='block'; return; }
+                    if(result.success === false){ appendLog('Investment batch error: ' + (result.error || 'unknown')); setStatus('error', result.error || 'investment batch error'); closeBtn.style.display='block'; return; }
+                    totalInv += result.inserted || 0;
+                    updateCounters();
+                    appendLog('Investment batch done: inserted=' + (result.inserted||0) + ' updated=' + (result.updated||0));
+                    runOne(k+1);
+                  }).withFailureHandler(function(err){ appendLog('Investment batch failed: '+err); appendLog('Error'); closeBtn.style.display='block'; }).insertInvestmentBatchSafe(invBatches[k]);
+                }
+                runOne(0);
+              }
+
+              function proceedNextOrFinalize(){
+                if(resp.has_more){ updateCounters(); processPage(resp.next_cursor); }
+                else {
+                  appendLog('Finalizing import...');
+                  google.script.run.withSuccessHandler(function(resp){
+                    if(resp && resp.success === false){ appendLog('Finalize failed: ' + (resp.error || 'unknown')); setStatus('error', resp && resp.error); }
+                    else {
+                      appendLog('Import completed.');
+                      updateCounters();
+                      setStatus('completed');
+                      // Show Close button for user to dismiss; clicking it will refresh the sidebar
+                    }
+                    closeBtn.style.display='block';
+                  }).withFailureHandler(function(err){ appendLog('Finalize RPC failed: '+err); appendLog('Error'); setStatus('error', err && err.message); closeBtn.style.display='block'; }).finalizeLink(accountId);
+                }
+              }
+
+              // start transaction batches
+              runTxBatches(0);
+
+              }).withFailureHandler(function(err){ appendLog('prepareLinkPayloadPage failed: ' + err); appendLog('Error'); setStatus('error', err && err.message); closeBtn.style.display='block'; }).prepareLinkPayloadPage(accountId, next_cursor || '');
+          }
+
+          // start
+          document.addEventListener('DOMContentLoaded', function(){ processPage(''); updateCounters(); });
+        </script>
+      </body>
+      </html>
+</script>
+</body>
+</html>

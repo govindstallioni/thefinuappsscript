@@ -1,15 +1,9 @@
 /**
- * EXPERT OPTIMIZED Joint Yearly Budget Generator (Strict Column Mapping)
- *
- * MODIFICATIONS:
- * 1. Store Allocation Ratios: The Alloc 1 and Alloc 2 percentages from the Categories sheet
- * are now stored on the in-memory category object (catObj).
- * 2. NEW Actual Allocation Logic: In 'B. Process Transactions', if a transaction's owner is
- * 'Joint', 'Household', or empty, the transaction amount is split using the category's
- * stored alloc1 and alloc2 ratios, not the previous 50/50 split.
- * 3. Ratio Redistribution Removed: The secondary ratio redistribution logic in buildRowBlock
- * has been removed. The 'Actual' amounts displayed now directly reflect the allocated
- * amounts calculated in the transaction processing loop.
+ * EXPERT OPTIMIZED Joint Yearly Budget Generator
+ * * FIXES APPLIED:
+ * 1. Populates "Actual Cash Flow" for both Master and Monthly columns.
+ * 2. Updated Currency Format to show $0.00 instead of dashes for zero values.
+ * 3. Maintains all existing robust key matching and year filtering.
  */
 function populateJointYearlyBudget() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -23,40 +17,43 @@ function populateJointYearlyBudget() {
     return;
   }
   
-  // --- COLOR AND CONSTANTS (Ensured highest scope within function to fix ReferenceError) ---
   const borderColor = '#000000'; 
   const colorType = '#e68e68';
-  const colorGroup = '#fce5cd'; 
+  const colorGroup = '#fce5cd';
 
-  // --- 1. FAST CONFIGURATION LOAD ---
+  // --- 1. CONFIGURATION LOAD ---
   const configRaw = defSheet.getRange('C5:C12').getValues().flat();
   const tranConfigRaw = defSheet.getRange('I5:I12').getValues().flat();
   const monthColsRaw = defSheet.getRange('W2:W13').getValues().flat();
   const namesRaw = defSheet.getRange('C11:C12').getValues().flat();
-  const year = defSheet.getRange('V1').getValue();
-
-  outSheet.getRange('B3').setValue("⏳ Processing..");
   
-  const NAME1 = namesRaw[0];
-  const NAME2 = namesRaw[1];
+  const year = outSheet.getRange('D2').getValue();
+
+  outSheet.getRange('B3').setValue("⏳ Processing Actuals...");
+  
+  const NAME1 = String(namesRaw[0] || "").trim();
+  const NAME2 = String(namesRaw[1] || "").trim();
 
   const CONFIG = {
-    CAT_COL: configRaw[0] - 1, GRP_COL: configRaw[1] - 1, TYP_COL: configRaw[2] - 1, HIDE_COL: configRaw[3] - 1,
-    ALLOC1: configRaw[4] - 1, ALLOC2: configRaw[5] - 1, 
+    CAT_COL: configRaw[0] - 1,
+    GRP_COL: configRaw[1] - 1,
+    TYP_COL: configRaw[2] - 1,
+    HIDE_COL: configRaw[3] - 1,
+    ALLOC1: configRaw[4] - 1,
+    ALLOC2: configRaw[5] - 1, 
     YEAR: year,
-    NAME1: NAME1, NAME2: NAME2,
-    BUDGET_COLS: monthColsRaw.map(c => c - 1),
-    TRAN_CAT_COL: defSheet.getRange('I5').getValue() - 1,
-    TRAN_GRP_COL: defSheet.getRange('I6').getValue() - 1,
-    TRAN_TYP_COL: tranConfigRaw[2] - 1, 
-    TRAN_DATE_COL: tranConfigRaw[4] - 1, 
-    TRAN_AMT_COL: tranConfigRaw[5] - 1, 
-    TRAN_OWNER_COL: tranConfigRaw[6] - 1,
-    TRAN_ASSIGN_AMT_COL: tranConfigRaw[7] - 1,
-    // Note: OWNER_MAP is no longer strictly needed but kept for context.
-    OWNER_MAP: { [String(NAME1).toLowerCase()]: 1, [String(NAME2).toLowerCase()]: 2 }
+    NAME1: NAME1,
+    NAME2: NAME2,
+    BUDGET_COLS: monthColsRaw.map(col => col - 1),
+    TRAN_CAT_COL: Number(tranConfigRaw[0]) - 1,
+    TRAN_GRP_COL: Number(tranConfigRaw[1]) - 1,
+    TRAN_TYP_COL: Number(tranConfigRaw[2]) - 1, 
+    TRAN_DATE_COL: Number(tranConfigRaw[4]) - 1, 
+    TRAN_AMT_COL: Number(tranConfigRaw[5]) - 1, 
+    TRAN_OWNER_COL: Number(tranConfigRaw[6]) - 1,
+    TRAN_ASSIGN_AMT_COL: Number(tranConfigRaw[7]) - 1
   };
-    
+
   // --- 2. SHEET CLEANUP ---
   const lastRow = outSheet.getLastRow();
   const lastCol = outSheet.getLastColumn();
@@ -64,34 +61,32 @@ function populateJointYearlyBudget() {
 
   if (lastRow >= startRow) {
     const rowsToClear = lastRow - startRow + 1;
-    outSheet.getRange(startRow, 2, rowsToClear, 1).breakApart(); 
+    outSheet.getRange(startRow, 2, rowsToClear, 1).breakApart();
     const clearRange = outSheet.getRange(startRow, 1, rowsToClear, lastCol);
     clearRange.clear({contentsOnly: true, formatOnly: true});
-    clearRange.setBackground(null).setFontWeight(null).setBorder(false, false, false, false, false, false);
   }
     
-  // --- 3. DATA PROCESSING (IN-MEMORY) ---
-  const tree = {}; 
+  // --- 3. DATA PROCESSING ---
+  const tree = {};
   const catMap = {}; 
+  const nameOnlyMap = {}; 
 
-  // Initialize monthly summary trackers (12 months = 12 elements)
-  const summaryTotals = {
-    budgetIncome1: Array(12).fill(0), actualIncome1: Array(12).fill(0),
-    budgetExpense1: Array(12).fill(0), actualExpense1: Array(12).fill(0),
-    budgetIncome2: Array(12).fill(0), actualIncome2: Array(12).fill(0),
-    budgetExpense2: Array(12).fill(0), actualExpense2: Array(12).fill(0)
+  const toNum = (val) => {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    const cleaned = String(val).replace(/[$,\s]/g, '');
+    return parseFloat(cleaned) || 0;
   };
 
-  // A. Process Categories (UPDATED: Store Allocations)
   const catData = catSheet.getDataRange().getValues();
   for (let i = 1; i < catData.length; i++) { 
     const row = catData[i];
-    if (row[CONFIG.HIDE_COL] === "Hide" || !row[CONFIG.TYP_COL]) continue;
+    if (String(row[CONFIG.HIDE_COL]).trim() === "Hide" || !row[CONFIG.TYP_COL]) continue;
 
-    const type = row[CONFIG.TYP_COL];
-    const group = row[CONFIG.GRP_COL];
-    const catName = row[CONFIG.CAT_COL];
-    
+    const type = String(row[CONFIG.TYP_COL]).trim();
+    const group = String(row[CONFIG.GRP_COL]).trim();
+    const catName = String(row[CONFIG.CAT_COL]).trim();
+
     if (!tree[type]) tree[type] = {};
     if (!tree[type][group]) tree[type][group] = {};
 
@@ -99,74 +94,57 @@ function populateJointYearlyBudget() {
     const alloc2 = Number(row[CONFIG.ALLOC2]) || 0;
     
     const catObj = {
-      name: catName, group: group, type: type,
+      name: catName,
       budget1: Array(12).fill(0), budget2: Array(12).fill(0),
       actual1: Array(12).fill(0), actual2: Array(12).fill(0),
-      // STORE ALLOCATIONS HERE for use in the transaction loop
-      alloc1: alloc1, 
-      alloc2: alloc2
+      alloc1: alloc1, alloc2: alloc2
     };
 
     for (let m = 0; m < 12; m++) {
-      let val = row[CONFIG.BUDGET_COLS[m]];
-      if (typeof val === 'string') val = parseFloat(val.replace(/[$,]/g, ''));
-      if (isNaN(val)) val = 0;
+      let val = toNum(row[CONFIG.BUDGET_COLS[m]]);
       catObj.budget1[m] = val * alloc1;
       catObj.budget2[m] = val * alloc2;
     }
     tree[type][group][catName] = catObj;
-    catMap[`${catName}_${group}_${type}`] = catObj;
+
+    const fullKey = (catName + "_" + group + "_" + type).toUpperCase();
+    catMap[fullKey] = catObj;
+    nameOnlyMap[catName.toUpperCase()] = catObj;
   }
 
-  // B. Process Transactions (Actuals are tracked based on new allocation rules)
   const tranData = tranSheet.getDataRange().getValues();
   for (let i = 1; i < tranData.length; i++) {
     const row = tranData[i];
     const tDate = row[CONFIG.TRAN_DATE_COL];
-    if (!tDate || new Date(tDate).getFullYear() != CONFIG.YEAR) continue;
+    if (!tDate) continue;
+    
+    const dateObj = new Date(tDate);
+    if (isNaN(dateObj.getTime()) || dateObj.getFullYear() != CONFIG.YEAR) continue;
 
-    const realTCat = row[CONFIG.TRAN_CAT_COL];
-    const realTGrp = row[CONFIG.TRAN_GRP_COL];
-    const type = row[CONFIG.TRAN_TYP_COL];
-    const catEntry = catMap[`${realTCat}_${realTGrp}_${type}`];
+    const tCat = String(row[CONFIG.TRAN_CAT_COL] || "").trim();
+    const tGrp = String(row[CONFIG.TRAN_GRP_COL] || "").trim();
+    const tTyp = String(row[CONFIG.TRAN_TYP_COL] || "").trim();
+
+    const fullLookupKey = (tCat + "_" + tGrp + "_" + tTyp).toUpperCase();
+    const catEntry = catMap[fullLookupKey] || nameOnlyMap[tCat.toUpperCase()];
     
     if (catEntry) {
-      let amt = Number(row[CONFIG.TRAN_AMT_COL]) || 0;
-      let assignAmt = Number(row[CONFIG.TRAN_ASSIGN_AMT_COL]) || 0;
-      // Expense amounts are often negative in transaction sheets, but we track them as positive expenses here.
-      if (type !== 'Income' && type !== 'Transfers') amt = Math.abs(amt); 
-      
-      const ownerRaw = String(row[CONFIG.TRAN_OWNER_COL]).toLowerCase();
-      const monthIdx = new Date(tDate).getMonth(); 
-      let amt1 = 0, amt2 = 0;
-      
-      // Get the category-specific allocations
-      const categoryAlloc1 = catEntry.alloc1;
-      const categoryAlloc2 = catEntry.alloc2;
-      
-      // === NEW ALLOCATION LOGIC ===
-      const name1Lower = String(CONFIG.NAME1).toLowerCase();
-      const name2Lower = String(CONFIG.NAME2).toLowerCase();
-      
-      if (ownerRaw === name1Lower) {
-          // If Owner is Name 1: 100% to Name 1's Actual
-          amt1 = amt;
-      } else if (ownerRaw === name2Lower) {
-          // If Owner is Name 2: 100% to Name 2's Actual
-          amt2 = amt;
-      } else if (ownerRaw === 'joint' || ownerRaw === 'household' ) {
-          // If Owner is Joint, Household, or blank: Split by category allocation ratio
-          //amt1 = amt * categoryAlloc1;
-          //amt2 = amt * categoryAlloc2;
-          amt1 = assignAmt;
-          amt2 = assignAmt;
-      } else {
-          // Fallback for unrecognized owner (e.g., a third party, or misspelled name) - fall back to 50/50
-          amt1 = amt / 2;
-          amt2 = amt / 2;
-      }
-      // ==========================
+      let amt = toNum(row[CONFIG.TRAN_AMT_COL]);
+      let assignAmt = toNum(row[CONFIG.TRAN_ASSIGN_AMT_COL]);
+      if (tTyp !== 'Income' && tTyp !== 'Transfers') amt = Math.abs(amt);
 
+      const ownerRaw = String(row[CONFIG.TRAN_OWNER_COL] || "").toLowerCase().trim();
+      const monthIdx = dateObj.getMonth();
+      const n1 = CONFIG.NAME1.toLowerCase();
+      const n2 = CONFIG.NAME2.toLowerCase();
+      
+      let amt1 = 0, amt2 = 0;
+      if (ownerRaw === n1) { amt1 = amt; } 
+      else if (ownerRaw === n2) { amt2 = amt; } 
+      else {
+        if (assignAmt !== 0) { amt1 = assignAmt; amt2 = assignAmt; } 
+        else { amt1 = amt * catEntry.alloc1; amt2 = amt * catEntry.alloc2; }
+      }
       catEntry.actual1[monthIdx] += amt1;
       catEntry.actual2[monthIdx] += amt2;
     }
@@ -174,386 +152,121 @@ function populateJointYearlyBudget() {
 
   // --- 4. OUTPUT GENERATION ---
   const nameRows = [], mainDataRows = [], metaRows = [];
-  
-  const sortedTypes = Object.keys(tree).sort((a, b) => (a === "Income" ? -1 : (b === "Income" ? 1 : a.localeCompare(b))));
+  const sortedTypes = Object.keys(tree).sort((a, b) => a === "Income" ? -1 : b === "Income" ? 1 : a.localeCompare(b));
+
+  // Initialize for Cash Flow Calculation
+  const monthlyAcf1 = Array(12).fill(0);
+  const monthlyAcf2 = Array(12).fill(0);
 
   sortedTypes.forEach(type => {
-    const groups = tree[type];
+    const isIncome = (type === "Income" || type === "Transfers");
+    const mult = isIncome ? 1 : -1;
     const typeTotals = { b1: Array(12).fill(0), a1: Array(12).fill(0), b2: Array(12).fill(0), a2: Array(12).fill(0) };
-    
-    const typeStartIdx = mainDataRows.length;
-    const typeBlock = buildRowBlock(type, typeTotals.b1, typeTotals.a1, typeTotals.b2, typeTotals.a2, type);
-    pushBlockData(typeBlock, type, "TYPE", nameRows, mainDataRows, metaRows);
+    const typeIdx = mainDataRows.length;
+    pushBlock(type, typeTotals, type, "TYPE", nameRows, mainDataRows, metaRows);
 
-    Object.keys(groups).sort().forEach(group => {
-      const cats = groups[group];
+    Object.keys(tree[type]).sort().forEach(group => {
       const groupTotals = { b1: Array(12).fill(0), a1: Array(12).fill(0), b2: Array(12).fill(0), a2: Array(12).fill(0) };
+      const groupIdx = mainDataRows.length;
+      pushBlock(group, groupTotals, type, "GROUP", nameRows, mainDataRows, metaRows);
 
-      const groupStartIdx = mainDataRows.length;
-      const groupBlock = buildRowBlock(group, groupTotals.b1, groupTotals.a1, groupTotals.b2, groupTotals.a2, type);
-      pushBlockData(groupBlock, group, "GROUP", nameRows, mainDataRows, metaRows);
-
-      Object.keys(cats).sort().forEach(catKey => {
-        const cat = cats[catKey];
-        const catBlock = buildRowBlock(cat.name, cat.budget1, cat.actual1, cat.budget2, cat.actual2, type);
-        pushBlockData(catBlock, cat.name, "CAT", nameRows, mainDataRows, metaRows);
-
+      Object.keys(tree[type][group]).sort().forEach(cName => {
+        const c = tree[type][group][cName];
+        pushBlock(c.name, {b1:c.budget1, a1:c.actual1, b2:c.budget2, a2:c.actual2}, type, "CAT", nameRows, mainDataRows, metaRows);
         for (let m=0; m<12; m++) {
-          groupTotals.b1[m] += cat.budget1[m]; groupTotals.a1[m] += cat.actual1[m];
-          groupTotals.b2[m] += cat.budget2[m]; groupTotals.a2[m] += cat.actual2[m];
+          groupTotals.b1[m]+=c.budget1[m]; groupTotals.a1[m]+=c.actual1[m];
+          groupTotals.b2[m]+=c.budget2[m]; groupTotals.a2[m]+=c.actual2[m];
+          monthlyAcf1[m] += (c.actual1[m] * mult);
+          monthlyAcf2[m] += (c.actual2[m] * mult);
         }
       });
-
-      // ADD SPACER ROW AFTER EACH GROUP
-      const currentWidth = mainDataRows[mainDataRows.length - 1].length;
-      pushSpacerRow(currentWidth, nameRows, mainDataRows, metaRows);
-
-      const finalGroupBlock = buildRowBlock(group, groupTotals.b1, groupTotals.a1, groupTotals.b2, groupTotals.a2, type);
-      updateBlockData(mainDataRows, groupStartIdx, finalGroupBlock);
+      pushSpacer(mainDataRows[0].length, nameRows, mainDataRows, metaRows);
+      updateBlock(mainDataRows, groupIdx, buildRows(group, groupTotals.b1, groupTotals.a1, groupTotals.b2, groupTotals.a2, type));
 
       for (let m=0; m<12; m++) {
-        typeTotals.b1[m] += groupTotals.b1[m]; typeTotals.a1[m] += groupTotals.a1[m];
-        typeTotals.b2[m] += groupTotals.b2[m]; typeTotals.a2[m] += groupTotals.a2[m];
+        typeTotals.b1[m]+=groupTotals.b1[m]; typeTotals.a1[m]+=groupTotals.a1[m];
+        typeTotals.b2[m]+=groupTotals.b2[m]; typeTotals.a2[m]+=groupTotals.a2[m];
       }
     });
-
-    const finalTypeBlock = buildRowBlock(type, typeTotals.b1, typeTotals.a1, typeTotals.b2, typeTotals.a2, type);
-    updateBlockData(mainDataRows, typeStartIdx, finalTypeBlock);
-    
-    // Aggregate data for the D3:F4 Summary and Monthly Summary calculations
-    for (let m = 0; m < 12; m++) {
-        if (type === "Income" || type === "Transfers") {
-            summaryTotals.budgetIncome1[m] += typeTotals.b1[m];
-            summaryTotals.actualIncome1[m] += typeTotals.a1[m];
-            summaryTotals.budgetIncome2[m] += typeTotals.b2[m];
-            summaryTotals.actualIncome2[m] += typeTotals.a2[m];
-        } else { // Expense types
-            summaryTotals.budgetExpense1[m] += typeTotals.b1[m];
-            summaryTotals.actualExpense1[m] += typeTotals.a1[m];
-            summaryTotals.budgetExpense2[m] += typeTotals.b2[m];
-            summaryTotals.actualExpense2[m] += typeTotals.a2[m];
-        }
-    }
+    updateBlock(mainDataRows, typeIdx, buildRows(type, typeTotals.b1, typeTotals.a1, typeTotals.b2, typeTotals.a2, type));
   });
 
-  // --- 5. WRITE & FORMAT DATA ---
-  if (mainDataRows.length > 0) {
-    const numRows = mainDataRows.length;
-    const dataWidth = mainDataRows[0].length; 
-    const lastDataColIndex = dataWidth + 3; 
-    const finalColLetterRevised = colToLet(lastDataColIndex);
-
-    // Write Data to Sheet
-    outSheet.getRange(startRow, 2, numRows, 1).setValues(nameRows.map(x => [x])).setFontFamily("Comfortaa").setFontSize(10).setHorizontalAlignment('left');
-    outSheet.getRange(startRow, 3, numRows, dataWidth).setValues(mainDataRows).setFontFamily("Comfortaa").setFontSize(10);
-    
-    // --- ROW-BASED FORMATTING ---
-    const currencyRanges = [];
-    const percentRanges = [];
-    const nameMergeRanges = [];
-    const rightBorderRanges = []; 
-    const bottomBorderRanges = []; 
-    
-    let i = 0;
-    while (i < numRows) {
-      const r = startRow + i;
-      const meta = metaRows[i];
-
-      // Handle Spacer Rows
-      if (meta === "SPACER") {
-        i++; 
-        continue;
-      }
-
-      // Handle Data Blocks (Type, Group, Cat) - 4 Rows
-      if (meta === "TYPE" || meta === "GROUP" || meta === "CAT") {
-        
-        // 1. Merge Name Column
-        nameMergeRanges.push(`B${r}:B${r+3}`);
-
-        // 2. Headers Background
-        if (meta === "TYPE" || meta === "GROUP") {
-          outSheet.getRange(r, 2, 4, dataWidth + 1).setBackground(meta === "TYPE" ? colorType : colorGroup).setFontWeight('bold');
-        }
-
-        // 3. Collect Bottom Border Range (Col B to end of data, on the 4th row)
-        if (meta === "GROUP" || meta === "CAT") {
-            const lastRowOfBlock = r + 3;
-            // Range includes column B, C, and all data columns.
-            const rangeStr = `B${lastRowOfBlock}:${finalColLetterRevised}${lastRowOfBlock}`;
-            bottomBorderRanges.push(rangeStr);
-        }
-
-        // 4. Number Formats and Right Borders (Iterate 4 rows of the block)
-        for (let rowOffset = 0; rowOffset < 4; rowOffset++) {
-            const currR = r + rowOffset;
-            const rowType = rowOffset; // 0:Budget, 1:Actual, 2:Diff, 3:%
-            
-            // Data range from D to finalColLetter
-            const dataRowRange = `D${currR}:${finalColLetterRevised}${currR}`;
-            
-            if (rowType === 3) percentRanges.push(dataRowRange);
-            else currencyRanges.push(dataRowRange);
-
-            // COLLECT ALL COLUMN RIGHT BORDERS (N1, N2, Total columns)
-            // Annual Block Borders (D, E, F)
-            rightBorderRanges.push(`${colToLet(4)}${currR}`); // D (Name 1)
-            rightBorderRanges.push(`${colToLet(5)}${currR}`); // E (Name 2)
-            rightBorderRanges.push(`${colToLet(6)}${currR}`); // F (Total)
-            
-            // Monthly Block Borders (H, I, J | K, L, M | ... | AQ)
-            for (let m = 0; m < 12; m++) {
-                // Name 1 column (Col 8, 11, 14...)
-                rightBorderRanges.push(`${colToLet(8 + m * 3)}${currR}`); 
-                // Name 2 column (Col 9, 12, 15...)
-                rightBorderRanges.push(`${colToLet(9 + m * 3)}${currR}`);
-                // Total column (Col 10, 13, 16... up to AQ)
-                rightBorderRanges.push(`${colToLet(10 + m * 3)}${currR}`);
-            }
-        }
-
-        i += 4; // Jump 4 rows for next iteration
-      }
-    }
-
-    // Batch Apply Formats
-    const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00)_);_($* "-"_);_(@_)';
-    const fmtPercent = '0.00%';
-    
-    if (currencyRanges.length) outSheet.getRangeList(currencyRanges).setNumberFormat(fmtCurrency);
-    if (percentRanges.length) outSheet.getRangeList(percentRanges).setNumberFormat(fmtPercent);
-    if (nameMergeRanges.length) {
-      const ranges = outSheet.getRangeList(nameMergeRanges).getRanges();
-      ranges.forEach(rng => rng.merge().setVerticalAlignment('top').setWrap(true));
-    }
-
-    // Apply the requested right borders (All column separators)
-    if (rightBorderRanges.length) {
-        const rl = outSheet.getRangeList(rightBorderRanges);
-        // Right border only (false, false, false, true, false, false)
-        rl.setBorder(false, false, false, true, false, false, borderColor, SpreadsheetApp.BorderStyle.SOLID);
-    }
-    
-    // CRITICAL FIX: Use iterative setBorder for horizontal lines to guarantee merged cell edge is drawn
-    if (bottomBorderRanges.length) {
-        const ranges = outSheet.getRangeList(bottomBorderRanges).getRanges();
-        ranges.forEach(range => {
-            // Apply bottom border only (Top, Left, Bottom, Right, Vertical, Horizontal)
-            range.setBorder(null, null, true, null, null, null, borderColor, SpreadsheetApp.BorderStyle.SOLID);
-        });
-    }
-
-    // APPLY FULL OUTER BORDER (Ensures the far-right border of AQ and the bottom of the final row)
-    const finalRow = startRow + numRows - 1;
-    const outerRange = outSheet.getRange(`B${startRow}:${finalColLetterRevised}${finalRow}`);
-    outerRange.setBorder(true, true, true, true, false, false, borderColor, SpreadsheetApp.BorderStyle.SOLID);
-
-    // Alignments
-    outSheet.getRange(startRow, 4, numRows, dataWidth - 1).setHorizontalAlignment('right'); 
-    outSheet.getRange(startRow, 3, numRows, 1).setHorizontalAlignment('left'); 
-  }
-
-  // --- 6. WRITE SUMMARY CALCULATIONS (D3:F4 and Monthly H3:AS4) ---
-
-  const monthlySummaryBudgetRow = [];
-  const monthlySummaryActualRow = [];
-
+  // Write Cash Flow Row (Row 4)
+  const yearlyAcf1 = safeSum(monthlyAcf1), yearlyAcf2 = safeSum(monthlyAcf2);
+  const row4Update = [yearlyAcf1, yearlyAcf2, yearlyAcf1 + yearlyAcf2, ""]; 
   for (let m = 0; m < 12; m++) {
-    // 1. Calculate Monthly Net Totals
-    const netBudget1 = summaryTotals.budgetIncome1[m] - summaryTotals.budgetExpense1[m];
-    const netActual1 = summaryTotals.actualIncome1[m] - summaryTotals.actualExpense1[m];
-
-    const netBudget2 = summaryTotals.budgetIncome2[m] - summaryTotals.budgetExpense2[m];
-    const netActual2 = summaryTotals.actualIncome2[m] - summaryTotals.actualExpense2[m];
-
-    const netBudgetTotal = netBudget1 + netBudget2;
-    const netActualTotal = netActual1 + netActual2;
-
-    // 2. Populate Monthly Summary Rows (3 columns per month: N1, N2, Total)
-    monthlySummaryBudgetRow.push(netBudget1, netBudget2, netBudgetTotal);
-    monthlySummaryActualRow.push(netActual1, netActual2, netActualTotal);
+    row4Update.push(monthlyAcf1[m], monthlyAcf2[m], monthlyAcf1[m] + monthlyAcf2[m]);
   }
-  
-  // --- ANNUAL SUMMARY (D3:F4) ---
-  const annNetBudget1 = safeSum(summaryTotals.budgetIncome1) - safeSum(summaryTotals.budgetExpense1);
-  const annNetActual1 = safeSum(summaryTotals.actualIncome1) - safeSum(summaryTotals.actualExpense1);
-  const annNetBudget2 = safeSum(summaryTotals.budgetIncome2) - safeSum(summaryTotals.budgetExpense2);
-  const annNetActual2 = safeSum(summaryTotals.actualIncome2) - safeSum(summaryTotals.actualExpense2);
+  outSheet.getRange(4, 4, 1, row4Update.length).setValues([row4Update]);
 
-  const annNetBudgetTotal = annNetBudget1 + annNetBudget2;
-  const annNetActualTotal = annNetActual1 + annNetActual2;
+  // --- 5. FORMATTING & WRITING ---
+  if (mainDataRows.length > 0) {
+    const width = mainDataRows[0].length;
+    const finalCol = colToLet(width + 3);
 
-  // Write Annual Net Totals (D3:F4)
-  outSheet.getRange('D3').setValue(annNetBudget1);
-  outSheet.getRange('D4').setValue(annNetActual1);
-  outSheet.getRange('E3').setValue(annNetBudget2);
-  outSheet.getRange('E4').setValue(annNetActual2);
-  outSheet.getRange('F3').setValue(annNetBudgetTotal);
-  outSheet.getRange('F4').setValue(annNetActualTotal);
+    outSheet.getRange(startRow, 2, mainDataRows.length, 1).setValues(nameRows.map(x => [x])).setFontFamily("Comfortaa").setFontSize(10);
+    outSheet.getRange(startRow, 3, mainDataRows.length, width).setValues(mainDataRows).setFontFamily("Comfortaa").setFontSize(10);
 
-  // --- MONTHLY SUMMARY (H3:AS4, or equivalent) ---
-  const monthlyDataWidth = monthlySummaryBudgetRow.length; // Should be 36 (12*3)
-  let combinedSummaryRanges;
+    const cRanges = [`D4:${finalCol}4`], pRanges = [], mRanges = [], rBRanges = [], bBRanges = [];
 
-  if (monthlyDataWidth > 0) {
-      // Write the 2x36 array starting at H3 (column index 8)
-      const monthlySummaryRange = outSheet.getRange(3, 8, 2, monthlyDataWidth);
-      monthlySummaryRange.setValues([
-          monthlySummaryBudgetRow, 
-          monthlySummaryActualRow
-      ]);
+    for (let i = 0; i < mainDataRows.length; i++) {
+      const r = startRow + i;
+      if (metaRows[i] === "SPACER") continue;
+      mRanges.push(`B${r}:B${r+3}`);
+      if (metaRows[i] !== "CAT") outSheet.getRange(r, 2, 4, width + 1).setBackground(metaRows[i] === "TYPE" ? colorType : colorGroup).setFontWeight('bold');
+      bBRanges.push(`B${r+3}:${finalCol}${r+3}`);
 
-      // Combine Annual and Monthly Ranges for Formatting
-      combinedSummaryRanges = outSheet.getRangeList([
-          outSheet.getRange('D3:F4').getA1Notation(), 
-          monthlySummaryRange.getA1Notation()
-      ]);
-      
-      // Add right borders to the monthly summary block for visual separation
-      const monthlySummaryBorders = [];
-      for(let m = 0; m < 12; m++) {
-          const colN1 = 8 + m * 3; // Col H, K, N, ...
-          const colN2 = 9 + m * 3; // Col I, L, O, ...
-          const colTotal = 10 + m * 3; // Col J, M, P, ...
-          
-          // Apply border to Name 1 and Name 2 columns for both Budget (3) and Actual (4) rows
-          monthlySummaryBorders.push(`${colToLet(colN1)}3`, `${colToLet(colN1)}4`); 
-          monthlySummaryBorders.push(`${colToLet(colN2)}3`, `${colToLet(colN2)}4`);
-          // Apply border to Total column
-          monthlySummaryBorders.push(`${colToLet(colTotal)}3`, `${colToLet(colTotal)}4`);
+      for (let offset = 0; offset < 4; offset++) {
+        const row = r + offset;
+        const dataRange = `D${row}:${finalCol}${row}`;
+        if (offset === 3) pRanges.push(dataRange); else cRanges.push(dataRange);
+        rBRanges.push(`D${row}`, `E${row}`, `F${row}`);
+        for (let m=0; m<12; m++) rBRanges.push(`${colToLet(8+m*3)}${row}`, `${colToLet(9+m*3)}${row}`, `${colToLet(10+m*3)}${row}`);
       }
-
-      if (monthlySummaryBorders.length) {
-          const ml = outSheet.getRangeList(monthlySummaryBorders);
-          // Right border only (false, false, false, true, false, false)
-          ml.setBorder(false, false, false, true, false, false, borderColor, SpreadsheetApp.BorderStyle.SOLID);
-      }
-
-  } else {
-    // Only use the annual summary range if monthly is empty
-    combinedSummaryRanges = outSheet.getRangeList([outSheet.getRange('D3:F4').getA1Notation()]);
+      i += 3;
+    }
+    
+    // UPDATED: Standard Currency Format that shows $0.00 for zeros
+    const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00)_);_($* 0.00_);_(@_)';
+    
+    if (cRanges.length) outSheet.getRangeList(cRanges).setNumberFormat(fmtCurrency);
+    if (pRanges.length) outSheet.getRangeList(pRanges).setNumberFormat('0.00%');
+    if (mRanges.length) outSheet.getRangeList(mRanges).getRanges().forEach(rng => rng.merge().setVerticalAlignment('top').setWrap(true));
+    if (rBRanges.length) outSheet.getRangeList(rBRanges).setBorder(false, false, false, true, false, false, borderColor, SpreadsheetApp.BorderStyle.SOLID);
+    if (bBRanges.length) outSheet.getRangeList(bBRanges).setBorder(null, null, true, null, null, null, borderColor, SpreadsheetApp.BorderStyle.SOLID);
+    
+    outSheet.getRange(startRow, 4, mainDataRows.length, width-1).setHorizontalAlignment('right'); 
+    outSheet.getRange(startRow, 3, mainDataRows.length, 1).setHorizontalAlignment('left');
   }
-
-  // Apply Formatting to all Summary cells (D3:F4 and monthly)
-  const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00)_);_($* "-"_);_(@_)';
-  combinedSummaryRanges.setNumberFormat(fmtCurrency);
-  combinedSummaryRanges.setFontWeight('bold');
-
-
-  outSheet.getRange('B3').setValue("Last updated on " + getDateTime());
+  outSheet.getRange('B3').setValue("Last updated: " + new Date().toLocaleString());
 }
 
-// --- HELPERS ---
-
-function pushBlockData(blockData, name, meta, nameRows, mainRows, metaRows) {
-  for (let i=0; i<4; i++) {
-    nameRows.push(name);
-    mainRows.push(blockData[i]); 
-    metaRows.push(meta);
-  }
+function pushBlock(name, d, type, tag, nR, dR, mR) {
+  const rows = buildRows(name, d.b1, d.a1, d.b2, d.a2, type);
+  rows.forEach(r => { nR.push(name); dR.push(r); mR.push(tag); });
 }
+function pushSpacer(w, nR, dR, mR) { nR.push(""); dR.push(Array(w).fill("")); mR.push("SPACER"); }
+function updateBlock(dR, start, rows) { rows.forEach((r, i) => dR[start+i] = r); }
 
-function pushSpacerRow(width, nameRows, mainRows, metaRows) {
-  nameRows.push(""); // Empty Name
-  mainRows.push(Array(width).fill("")); // Empty Data
-  metaRows.push("SPACER");
-}
-
-function updateBlockData(mainRows, startIdx, blockData) {
-  for (let i=0; i<4; i++) {
-    mainRows[startIdx + i] = blockData[i]; 
-  }
-}
-
-/**
- * Builds the 4 rows (Budget, Actual, Diff, %) for the Annual and Monthly columns.
- * **UPDATED:** The 'Actual' amounts (a1Arr, a2Arr) are now used directly as they
- * already reflect the category-based allocation from the transaction loop.
- */
-function buildRowBlock(name, b1Arr, a1Arr, b2Arr, a2Arr, type) {
-  const isIncome = (type === "Income" || type === "Transfers");
-  // Multiplier flips the sign of 'Diff' for Income categories (positive Diff means bad)
-  const mult = isIncome ? -1 : 1;
-  const sum = safeSum;
-
-  // --- 1. ANNUAL CALCS (Using Pre-Allocated Actuals) ---
-  const annB1 = sum(b1Arr);
-  const annB2 = sum(b2Arr);
-  const annBT = annB1 + annB2;
-
-  // Actuals are now the sums of the pre-allocated amounts from the transaction loop
-  const annA1_display = sum(a1Arr); 
-  const annA2_display = sum(a2Arr);
-  const annAT_total = annA1_display + annA2_display; // Total Actual is the sum of the allocated parts
-
-  // Differences and Percentages use the allocated actuals
-  const annD1 = (annB1 - annA1_display) * mult;
-  const annP1 = safeDiv(annA1_display, annB1);
-
-  const annD2 = (annB2 - annA2_display) * mult;
-  const annP2 = safeDiv(annA2_display, annB2);
-
-  // Total differences and percentages use the total actual spend
-  const annDT = (annBT - annAT_total) * mult;
-  const annPT = safeDiv(annAT_total, annBT);
-
-  // Row Arrays initialized with Labels (Col C)
-  const r1 = ["Budget"], r2 = ["Actual"], r3 = ["Diff"], r4 = ["%"];
-  
-  // --- ANNUAL BLOCK PUSH (Cols D-F) ---
-  r1.push(annB1); r2.push(annA1_display); r3.push(annD1); r4.push(annP1); // Use allocated actuals
-  r1.push(annB2); r2.push(annA2_display); r3.push(annD2); r4.push(annP2); // Use allocated actuals
-  r1.push(annBT); r2.push(annAT_total); r3.push(annDT); r4.push(annPT);
-  // Col G: Spacer (Empty)
-  r1.push(""); r2.push(""); r3.push(""); r4.push("");
-
-  // --- 2. MONTHLY BLOCKS PUSH (Cols H onwards) ---
+function buildRows(name, b1, a1, b2, a2, type) {
+  const mult = (type === "Income" || type === "Transfers") ? -1 : 1;
+  const sB1 = safeSum(b1), sB2 = safeSum(b2), sBT = sB1+sB2;
+  const sA1 = safeSum(a1), sA2 = safeSum(a2), sAT = sA1+sA2;
+  const r1 = ["Budget", sB1, sB2, sBT, ""], r2 = ["Actual", sA1, sA2, sAT, ""];
+  const r3 = ["Diff", (sB1-sA1)*mult, (sB2-sA2)*mult, (sBT-sAT)*mult, ""];
+  const r4 = ["%", safeDiv(sA1,sB1), safeDiv(sA2,sB2), safeDiv(sAT,sBT), ""];
   for (let m=0; m<12; m++) {
-    const mb1 = b1Arr[m];
-    const mb2 = b2Arr[m];
-    const mbt = mb1 + mb2;
-
-    const ma1_display = a1Arr[m]; // Monthly allocated actual
-    const ma2_display = a2Arr[m]; // Monthly allocated actual
-    const mat_total = ma1_display + ma2_display; // Monthly Total Actual Spend
-
-    // Monthly Name 1 
-    const md1 = (mb1 - ma1_display) * mult;
-    const mp1 = safeDiv(ma1_display, mb1);
-
-    // Monthly Name 2 
-    const md2 = (mb2 - ma2_display) * mult;
-    const mp2 = safeDiv(ma2_display, mb2);
-
-    // Monthly Total 
-    const mdt = (mbt - mat_total) * mult;
-    const mpt = safeDiv(mat_total, mbt);
-
-    // Push Monthly Block (Name 1, Name 2, Total)
-    r1.push(mb1, mb2, mbt);
-    r2.push(ma1_display, ma2_display, mat_total); // Pushing allocated actuals directly
-    r3.push(md1, md2, mdt);
-    r4.push(mp1, mp2, mpt);
+    const mb1=b1[m], ma1=a1[m], mb2=b2[m], ma2=a2[m];
+    r1.push(mb1, mb2, mb1+mb2); r2.push(ma1, ma2, ma1+ma2);
+    r3.push((mb1-ma1)*mult, (mb2-ma2)*mult, (mb1+mb2-(ma1+ma2))*mult);
+    r4.push(safeDiv(ma1,mb1), safeDiv(ma2,mb2), safeDiv(ma1+ma2,mb1+mb2));
   }
-  
   return [r1, r2, r3, r4];
 }
-
 function colToLet(c) {
   let l = '';
-  while (c > 0) {
-    let t = (c - 1) % 26;
-    l = String.fromCharCode(t + 65) + l;
-    c = (c - t - 1) / 26;
-  }
+  while (c > 0) { let t = (c - 1) % 26; l = String.fromCharCode(t + 65) + l; c = (c - t - 1) / 26; }
   return l;
 }
-
-function safeSum(arr) {
-  return Array.isArray(arr) ? arr.reduce((a, b) => a + b, 0) : 0;
-}
-
-function safeDiv(num, den) {
-  if (den === 0) return (num === 0 ? 0 : 1); // Avoids division by zero, returns 100% (1) if num > 0
-  return num / den;
-}
+function safeSum(arr) { return arr.reduce((a, b) => a + b, 0); }
+function safeDiv(n, d) { return d === 0 ? (n === 0 ? 0 : 1) : n / d; }

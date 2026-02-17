@@ -47,4 +47,18 @@ function actionFailureMessage( text ){
 function reloadToSidebar(){
   google.script.run.showSidebar();
 }
+
+function showMessage(msg, type, duration){
+  // type: 'error' or 'success'
+  const container = document.getElementById('app-notification-action') || document.getElementById('statusBanner');
+  if(!container){
+    try{ alert(msg); }catch(e){}
+    return;
+  }
+  container.innerHTML = type === 'error' ? actionFailureMessage(msg) : actionSuccessMessage(msg);
+  container.classList.remove('hidden');
+  if(type !== 'error'){
+    setTimeout(function(){ container.classList.add('hidden'); container.innerHTML = ''; }, duration || 5000);
+  }
+}
 </script>

@@ -1,5 +1,4 @@
 function linkTransactionSheet( account_id ){
-
   var addedTransactions = [];
   var modifiedTransactions = [];
   var has_more = false;

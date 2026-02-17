@@ -23,14 +23,36 @@ function clearAccountData(account_id) {
 }
 
 function linkAccountsSheetData( account_id ){
-  let sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
-  let lastrow = sheet.getLastRow() + 1;
-  for( let i = 1; i <= lastrow; i++ ){
-    if( sheet.getRange(i + 1, 12).getValue() === ''){
-      sheet.getRange(i + 1, 12).setValue(account_id);
-      break;
+  const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+  const ACCOUNT_ID_COL = 12; // column L (Account ID)
+
+  // Read only the Account ID column starting from row 2
+  const lastRow = Math.max( sheet.getLastRow(), 1 );
+  if (lastRow < 2) {
+    // sheet has only header or is empty — append a new row with account_id in col 12
+    sheet.appendRow(new Array(sheet.getLastColumn()).fill(''));
+    sheet.getRange(2, ACCOUNT_ID_COL).setValue(account_id);
+    return;
+  }
+
+  const colVals = sheet.getRange(2, ACCOUNT_ID_COL, lastRow - 1, 1).getValues();
+
+  // If account_id already present, do nothing
+  for (let i = 0; i < colVals.length; i++) {
+    if (colVals[i] && colVals[i][0] === account_id) return;
+  }
+
+  // Find first empty cell in Account ID column and set it, otherwise append
+  for (let i = 0; i < colVals.length; i++) {
+    if (!colVals[i] || colVals[i][0] === '') {
+      sheet.getRange(2 + i, ACCOUNT_ID_COL).setValue(account_id);
+      return;
     }
   }
+
+  // No empty slot found — append a new row and set the Account ID cell only
+  sheet.appendRow(new Array(sheet.getLastColumn()).fill(''));
+  sheet.getRange(sheet.getLastRow(), ACCOUNT_ID_COL).setValue(account_id);
 }
 
 function sortingAccountSheetByDate(){
