@@ -170,11 +170,6 @@ function getPlaidTransactionSyncData( account_id, new_cursor = null ){
     };
     response = plaidRequest(plaidTransactionsEndpoint, payload);
   }
-  MailApp.sendEmail(
-    UserEmail,
-    'Thefinu - Plaid Account(s) Transactions.',
-    JSON.stringify( response, null, 2 ),
-  );
   return response;
 }
 
@@ -222,11 +217,6 @@ function getPlaidInvestmentsData( account_id ){
 
     response = plaidRequest(plaidInvestmentHistoryEndpoint, payload);
   }
-  MailApp.sendEmail(
-    UserEmail,
-    'Thefinu - Plaid Account(s) Investments.',
-    JSON.stringify( response, null, 2 ),
-  );
   return response;
 }
 
