@@ -86,71 +86,6 @@ function exchangePublicTokenForAccessToken(public_token, metadata) {
   }
 }
 
-/**
- * Optional: Get accounts & institution info
- */
-/*function getAccountsAndInstitution(access_token) {
-
-  try{
-
-    const appSettingsData = getAppSettings();
-
-    if( appSettingsData.success === true ){
-
-      const plaidAccountEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/accounts/get';
-      const plaidInstitutionEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/institutions/get_by_id';
-
-      // Get accounts
-      const accRes = UrlFetchApp.fetch(plaidAccountEndpoint, {
-        method: "post",
-        contentType: "application/json",
-        payload: JSON.stringify({
-          client_id: appSettingsData.result.plaidClientKey,
-          secret: appSettingsData.result.plaidSecretKey,
-          access_token: access_token
-        })
-      });
-
-      const accJson = JSON.parse(accRes.getContentText());
-
-      // Get institution
-      let instName = "Unknown";
-      if (accJson.item?.institution_id) {
-        const instRes = UrlFetchApp.fetch(plaidInstitutionEndpoint, {
-          method: "post",
-          contentType: "application/json",
-          payload: JSON.stringify({
-            client_id: appSettingsData.result.plaidClientKey,
-            secret: appSettingsData.result.plaidSecretKey,
-            institution_id: accJson.item.institution_id,
-            //country_codes: PLAID_COUNTRY_CODES
-          })
-        });
-        const instJson = JSON.parse(instRes.getContentText());
-        instName = instJson.institution?.name || "Unknown";
-      }
-
-      return {
-        accounts: accJson.accounts || [],
-        institution: {
-          id: accJson.item?.institution_id,
-          name: instName
-        }
-      };
-    }else{
-      return {
-        success: false,
-        data: []
-      };
-    }
-  }catch(error){
-    return {
-      success: false,
-      error: error.toString()
-    };
-  }
-}*/
-
 function getPlaidTransactionSyncData( account_id, new_cursor = null ){
 
   let response = [];
@@ -170,11 +105,6 @@ function getPlaidTransactionSyncData( account_id, new_cursor = null ){
     };
     response = plaidRequest(plaidTransactionsEndpoint, payload);
   }
-  MailApp.sendEmail(
-    UserEmail,
-    'Thefinu - Plaid Account(s) Transactions.',
-    JSON.stringify( response, null, 2 ),
-  );
   return response;
 }
 
@@ -222,11 +152,6 @@ function getPlaidInvestmentsData( account_id ){
 
     response = plaidRequest(plaidInvestmentHistoryEndpoint, payload);
   }
-  MailApp.sendEmail(
-    UserEmail,
-    'Thefinu - Plaid Account(s) Investments.',
-    JSON.stringify( response, null, 2 ),
-  );
   return response;
 }
 
