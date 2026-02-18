@@ -1,13 +1,3 @@
-function regenerateNetWorthReports(){
-  // Net Worth Reports
-  if (typeof populateNetWorth === 'function') {
-    populateNetWorth();
-  }
-  if (typeof populateJointNetWorth === 'function') {
-    populateJointNetWorth();
-  }
-}
-
 /**
  * Master function that calls all individual report generation functions.
  * You MUST ensure these functions exist in your script project.
@@ -43,24 +33,6 @@ function regenerateAllReports() {
 
   Logger.log("Report regeneration complete.");
 }
-
-function confirmPopulateReportToSheets(){
-
-  try{
-    populateNetWorth();
-    populateJointNetWorth();
-    populateMonthlyBudget();
-    populateJointMonthlyBudget();
-    populateYearlyBudget();
-    populateJointYearlyBudget();
-    return true;
-  }catch(error){
-    Logger.log( JSON.stringify("generate report error: "+ error) );
-    return false;
-  }
-}
-
-
 function startGenerationOfMonthlyBudget(){
   try{
     //SpreadsheetApp.getUi().alert('Monthly budget generation has started. Do not change anything until the process completes.');

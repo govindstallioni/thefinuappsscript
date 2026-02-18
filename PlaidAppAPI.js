@@ -55,9 +55,8 @@ function exchangePublicTokenForAccessToken(public_token, metadata) {
     // Prepare payload for your backend
     const dataToSend = {
       timestamp: new Date().toISOString(),
-      email: Session.getActiveUser().getEmail(),
+      email: getUserEmail(),
       plaid_item_id: item_id,
-      access_token: access_token,           // ← usually you keep this in your DB, not send!
       accounts: metadata.accounts,
       metadata: {
         institution_name: metadata.institution.name,
@@ -173,62 +172,16 @@ function getPlaidItem(access_token){
 
 
 function plaidRequest(url, payload) {
-  try {
-    const res = UrlFetchApp.fetch(url, {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-    return JSON.parse(res.getContentText());
-  } catch (e) {
-    const body = JSON.parse(e.message.match(/\{.*\}/)?.[0] || '{}');
-    const {error_type, error_code, error_message} = body;
-    switch (error_type) {
-      case 'ITEM_ERROR':
-        handlePlaidItemError(error_code, error_message);
-        break;
-      case 'RATE_LIMIT_EXCEEDED':
-        handleRateLimitError(error_code, error_message);
-        break;
-      case 'API_ERROR':
-        handlePlaidAPIError(error_code, error_message);
-        break;
-      case 'INVALID_REQUEST':
-      case 'INVALID_INPUT':
-        handlePlaidInvalidError(error_code, error_message);
-        break;
-      case 'INSTITUTION_ERROR':
-        handlePlaidInstitutionError(error_code, error_message);
-        break;
-      default:
-        handlePlaidUnknownError(error_code, error_message);
-        break;
-    }
+  const response = requestJson(url, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    maxRetries: 2,
+  });
+
+  if (!response.success) {
+    throw new Error('Plaid request failed with status ' + response.statusCode);
   }
-}
 
-function handlePlaidItemError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
-}
-
-function handleRateLimitError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
-
-}
-
-function handlePlaidAPIError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
-}
-
-function handlePlaidInvalidError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
-}
-
-function handlePlaidInstitutionError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
-}
-
-function handlePlaidUnknownError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
+  return response.body;
 }

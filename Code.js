@@ -1,9 +1,15 @@
 const API_ENDPOINT = 'https://thefinu.stallioni.com/';
 
-const UserEmail = Session.getActiveUser().getEmail();
-const UserSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-const UserSpreadsheetUrl = UserSpreadsheet.getUrl();
-const UserSpreadsheetId = UserSpreadsheet.getId();
+function getUserEmail() {
+  return Session.getActiveUser().getEmail();
+}
+
+function getUserSpreadsheet() {
+  return SpreadsheetApp.getActiveSpreadsheet();
+}
+function getUserSpreadsheetId() {
+  return getUserSpreadsheet().getId();
+}
 
 const USER_START_HERE_SHEET = 'Start Here';
 const USER_DATA_SHEET = 'Data';
@@ -43,6 +49,7 @@ function onOpen(e) {
   SpreadsheetApp.getUi()
     .createAddonMenu()
     .addItem('Open', 'showSidebar')
+    .addItem('Run Marketplace Preflight', 'runMarketplacePreflightChecksUI')
     //.addItem('Generate Reports', 'startGenerationOfReports')
     .addToUi();
 }
@@ -220,12 +227,13 @@ function createStripeSession(){
         muteHttpExceptions: true
       };
       
-      var request = UrlFetchApp.fetch(url, options);
-      const json = JSON.parse(request.getContentText());
+      const request = requestJson(url, Object.assign({}, options, { maxRetries: 1 }));
+      const json = request.body || {};
 
       return {
-        success: true,
-        checkoutUrl: json.url
+        success: request.success,
+        checkoutUrl: json.url,
+        error: request.error || null
       };
     }
    
@@ -259,15 +267,6 @@ function showSetupWizardTemplate(){
 function showUserDashboardTemplate(){
   const template = HtmlService.createTemplateFromFile('UserDashboard');
   template.isAutoSyncEnabled = PropertiesService.getUserProperties().getProperty("AUTO_SYNC_STATUS") === 'true' ? true : false;
-  return template.evaluate().getContent();
-}
-
-/**
- * Generates an error message UI string.
- */
-function getErrorUI(errorMessage) {
-  const template = HtmlService.createTemplateFromFile('Error');
-  template.message = errorMessage || "An unexpected error occurred while processing your request.";
   return template.evaluate().getContent();
 }
 
@@ -443,7 +442,7 @@ function installTemplateInitialSetup(){
     if( response.success === true ){
       const spreadsheetTemplateUrl = response.result.spreadsheetTemplateUrl;
       let sourceSpreadsheet = SpreadsheetApp.openByUrl(spreadsheetTemplateUrl);
-      const userSpreadsheet = UserSpreadsheet;
+      const userSpreadsheet = getUserSpreadsheet();
       let requiredSheets = appBaseTemplates();
       let sourceSheets = sourceSpreadsheet.getSheets();
       const requiredSet = new Set(requiredSheets.map(name => name.toLowerCase()));
@@ -660,7 +659,7 @@ function handleOnEdit(e){
   // Get row data
   const rowData = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
 
-  const defSheet = UserSpreadsheet.getSheetByName(USER_DEFINITION_SHEET);
+  const defSheet = getUserSpreadsheet().getSheetByName(USER_DEFINITION_SHEET);
 
   Logger.log( "sheet: "+ sheet.getName() + ' cell: '+ editCell +'range: '+ range);
   if( sheet.getName() === USER_BALANCE_HISTORY_SHEET ){
@@ -1138,7 +1137,7 @@ function deleteTriggerByFunction(functionName) {
 }
 
 function reApplyFormulaToSpreadsheet(item){
-  const spreadsheet = UserSpreadsheet;
+  const spreadsheet = getUserSpreadsheet();
   switch(item){
     case USER_TRANSACTIONS_SHEET:
       if (spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET)) {
@@ -1293,14 +1292,14 @@ function reApplyFormulaToSpreadsheet(item){
 
 function installFeaturedTemplates(){
 
-  let transactionSheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+  let transactionSheet = getUserSpreadsheet().getSheetByName(USER_TRANSACTIONS_SHEET);
   if( transactionSheet ){
     if( transactionSheet.getLastRow() > 2 ){
       const response = getAppSettings();
       if( response.success === true ){
         const spreadsheetTemplateUrl = response.result.spreadsheetTemplateUrl;
         let sourceSpreadsheet = SpreadsheetApp.openByUrl(spreadsheetTemplateUrl);
-        const userSpreadsheet = UserSpreadsheet;
+        const userSpreadsheet = getUserSpreadsheet();
         let requiredSheets = appFeaturedTemplates();
         let sourceSheets = sourceSpreadsheet.getSheets();
         const requiredSet = new Set(requiredSheets.map(name => name.toLowerCase()));
@@ -1320,14 +1319,14 @@ function installFeaturedTemplates(){
 }
 
 function hideSheetByName( sheetName ){
-  const sheet = UserSpreadsheet.getSheetByName(sheetName);
+  const sheet = getUserSpreadsheet().getSheetByName(sheetName);
   if(sheet){
     sheet.hideSheet();
   }
 }
 
 function protectSheetByName(sheetName){
-  const sheet = UserSpreadsheet.getSheetByName(sheetName);
+  const sheet = getUserSpreadsheet().getSheetByName(sheetName);
   if (sheet) {
     const protection = sheet.protect();
     protection.setDescription(`Protected: ${sheetName}`);
@@ -1404,7 +1403,7 @@ function confirmReportGenerationAlertMessage(message){
 }
 
 function checkAccountBalanceByAccountId(accountId){
-  const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+  const sheet = getUserSpreadsheet().getSheetByName(USER_ACCOUNTS_SHEET);
   const data = sheet.getDataRange().getValues();
   for (let row = 1; row < data.length; row++) {
     if( data[row].includes(accountId) ){
@@ -1415,7 +1414,7 @@ function checkAccountBalanceByAccountId(accountId){
 }
 
 function getAccountDataByAccountId(accountId){
-  const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+  const sheet = getUserSpreadsheet().getSheetByName(USER_ACCOUNTS_SHEET);
   const data = sheet.getDataRange().getValues();
   for (let row = 1; row < data.length; row++) {
     if( data[row].includes(accountId) ){
@@ -1439,7 +1438,7 @@ function showAddBalanceHistoryFormTemplate(){
 }
 
 function showExistingAccountFormFieldsTemplate(){
-  let sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+  let sheet = getUserSpreadsheet().getSheetByName(USER_ACCOUNTS_SHEET);
   let lastrow = sheet.getLastRow() + 1;
   let accounts = [];
 
@@ -1484,7 +1483,7 @@ function submitBalanceHistoryFormData(formData){
 
 function addManualAccountBalanceHistoryData( data ){
   try{
-    let sheet = UserSpreadsheet.getSheetByName(USER_BALANCE_HISTORY_SHEET);
+    let sheet = getUserSpreadsheet().getSheetByName(USER_BALANCE_HISTORY_SHEET);
     let lastrow = sheet.getLastRow() + 1;
     // change date format to mm/dd/yyyy
     data.balanceDate = formatDateToMMDDYYYY( data.balanceDate );
@@ -1527,7 +1526,7 @@ function addManualAccountBalanceHistoryData( data ){
         .setFontColor("#000000")
         .setFontWeight("bold");
     if( data.accountType === 'manual' ){
-      let accountSheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+      let accountSheet = getUserSpreadsheet().getSheetByName(USER_ACCOUNTS_SHEET);
       let accountLastRow = accountSheet.getLastRow() + 1;
        for( let i = 1; i <= accountLastRow; i++ ){
         if( accountSheet.getRange(i + 1, 12).getValue() === ''){
@@ -1594,6 +1593,16 @@ function clearAllUserProperties() {
   }
 }
 
+
+function deleteAllSheetsAndRecreate() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+
+  const tempSheet = ss.insertSheet('Temp');
+  sheets.forEach(sheet => ss.deleteSheet(sheet));
+  tempSheet.setName('Sheet1');
+}
+
 function getAccountNameByAccountId(account_id){
   try{
     const response = getAppPlaidAccountById(account_id);
@@ -1607,32 +1616,6 @@ function getAccountNameByAccountId(account_id){
     Logger.log(`Error while installTemplateInitialSetup: ${error.message}`);
     return null;
   }
-}
-
-function deleteAllSheetsAndRecreate() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheets = ss.getSheets();
-
-  // Create a temporary sheet
-  const tempSheet = ss.insertSheet('Temp');
-
-  // Delete all existing sheets
-  sheets.forEach(sheet => ss.deleteSheet(sheet));
-
-  // Rename temp sheet
-  tempSheet.setName('Sheet1');
-}
-
-function ensureTrigger(handler) {
-  const triggers = ScriptApp.getProjectTriggers();
-
-  const existing = triggers.find(t => t.getHandlerFunction() === handler);
-  if (existing) return;
-
-  ScriptApp.newTrigger(handler)
-    .timeBased()
-    .after(1000)
-    .create();
 }
 
 // External API helpers removed — using client-driven paginated fetch and server-side safe inserts.
@@ -1771,7 +1754,7 @@ function insertTransactionBatchSafe(txObjects){
   const lock = LockService.getUserLock();
   lock.waitLock(30000);
   try{
-    const sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+    const sheet = getUserSpreadsheet().getSheetByName(USER_TRANSACTIONS_SHEET);
     const headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
     const headerMap = buildHeaderIndexMapFromArray(headers);
     let txnIdColIdx = findHeaderIndexByKeywords(headerMap, ['transaction','id']);
@@ -1852,7 +1835,7 @@ function insertTransactionBatchSafe(txObjects){
 }
 
 function getInvestmentRowBySecurityId(securityId){
-  const sheet = UserSpreadsheet.getSheetByName(USER_INVESTMENTS_SHEET);
+  const sheet = getUserSpreadsheet().getSheetByName(USER_INVESTMENTS_SHEET);
   const data = sheet.getDataRange().getValues();
   for(let r = 0; r < data.length; r++){
     if(data[r].includes(securityId)) return r+1;
@@ -1865,7 +1848,7 @@ function insertInvestmentBatchSafe(invObjects){
   const lock = LockService.getUserLock();
   lock.waitLock(30000);
   try{
-    const sheet = UserSpreadsheet.getSheetByName(USER_INVESTMENTS_SHEET);
+    const sheet = getUserSpreadsheet().getSheetByName(USER_INVESTMENTS_SHEET);
     const headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
     const headerMap = buildHeaderIndexMapFromArray(headers);
     const lastCol = headers.length;
