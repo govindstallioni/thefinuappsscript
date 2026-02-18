@@ -84,7 +84,7 @@ function formatPlaidInvestments(account_id, investments){
 
 function insertInvestmentsData( collection ){
 
-  var sheet = UserSpreadsheet.getSheetByName(USER_INVESTMENTS_SHEET);
+  var sheet = getUserSpreadsheet().getSheetByName(USER_INVESTMENTS_SHEET);
   // Write headers
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
@@ -105,14 +105,14 @@ function updateInvestmentSheet( account_id ){
 }
 
 function sortingInvestmentSheet(){
-  var sheet = UserSpreadsheet.getSheetByName(USER_INVESTMENTS_SHEET);
+  var sheet = getUserSpreadsheet().getSheetByName(USER_INVESTMENTS_SHEET);
   const range = sheet.getDataRange(); 
   range.sort({ column: 5, ascending: false });
 }
 
 function clearInvestmentsData(account_id){
 
-  const sheet = UserSpreadsheet.getSheetByName(USER_INVESTMENTS_SHEET);
+  const sheet = getUserSpreadsheet().getSheetByName(USER_INVESTMENTS_SHEET);
   const range = sheet.getDataRange();
   const data = range.getValues();
   const columnIndexToCheck = 12; 
@@ -139,7 +139,7 @@ function clearInvestmentsData(account_id){
 }
 
 function changeAccountNameOnInvestmentSheet( account_id, account_name ){
-  let sheet = UserSpreadsheet.getSheetByName(USER_INVESTMENTS_SHEET);
+  let sheet = getUserSpreadsheet().getSheetByName(USER_INVESTMENTS_SHEET);
   var data = sheet.getDataRange().getValues();
   //Logger.log(data);
   for (var row = 0; row < data.length; row++) {
@@ -151,7 +151,7 @@ function changeAccountNameOnInvestmentSheet( account_id, account_name ){
 }
 
 function updateAccountIdOnInvestmentSheet( account_id, new_id ){
-  let sheet = UserSpreadsheet.getSheetByName(USER_INVESTMENTS_SHEET);
+  let sheet = getUserSpreadsheet().getSheetByName(USER_INVESTMENTS_SHEET);
   var data = sheet.getDataRange().getValues();
   for (var row = 0; row < data.length; row++) {
     if (data[row].includes(account_id)) {
