@@ -1,9 +1,9 @@
-async function generatePlaidTokenLink( access_token = null ) {
-  
+async function generatePlaidTokenLink(access_token = null) {
+
   let response = [];
   const appSettingsData = getAppSettings();
 
-  if( appSettingsData.success === true ){
+  if (appSettingsData.success === true) {
 
     const plaidEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/link/token/create';
 
@@ -20,7 +20,7 @@ async function generatePlaidTokenLink( access_token = null ) {
       webhook: appSettingsData.result.plaidWebhookUrl,
       country_codes: ['US'], // Country codes for available institutions
       language: 'en', // Language for the Link interface
-      access_token : access_token,
+      access_token: access_token,
       update: { account_selection_enabled: true }
     };
 
@@ -37,7 +37,7 @@ function exchangePublicTokenForAccessToken(public_token, metadata) {
 
   const appSettingsData = getAppSettings();
 
-  if( appSettingsData.success === true ){
+  if (appSettingsData.success === true) {
 
     const plaidExchangePublicTokenEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/item/public_token/exchange';
 
@@ -66,7 +66,7 @@ function exchangePublicTokenForAccessToken(public_token, metadata) {
       }
     };
 
-    updatePlaidAccountIDOnSheets( metadata.institution.institution_id, metadata.accounts );
+    updatePlaidAccountIDOnSheets(metadata.institution.institution_id, metadata.accounts);
     //Logger.log( JSON.stringify(dataToSend, null, 2) );
     // Send to YOUR backend
     storePlaidAPIAccounts(dataToSend);
@@ -77,7 +77,7 @@ function exchangePublicTokenForAccessToken(public_token, metadata) {
       message: 'New Accounts Added Successfully'
     };
 
-  }else{
+  } else {
     return {
       success: false,
       message: 'Someting went wrong, please try again.'
@@ -85,44 +85,41 @@ function exchangePublicTokenForAccessToken(public_token, metadata) {
   }
 }
 
-function getPlaidTransactionSyncData( account_id, new_cursor = null ){
+function getPlaidTransactionSyncData(account_id, new_cursor = null) {
 
   let response = [];
   const accountData = getAppPlaidAccountById(account_id);
   const appSettingsData = getAppSettings();
-  if( accountData.success === true && appSettingsData.success === true ){
+  if (accountData.success === true && appSettingsData.success === true) {
     const plaidTransactionsEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/transactions/sync';
     let payload = {
       client_id: appSettingsData.result.plaidClientKey,
       secret: appSettingsData.result.plaidSecretKey,
       access_token: accountData.result.access_token,
       cursor: new_cursor ? new_cursor : '',
-      count: 500,
-      options: {
-        account_id : account_id
-      }
+      count: 500
     };
     response = plaidRequest(plaidTransactionsEndpoint, payload);
   }
   return response;
 }
 
-function getPlaidAccountBalance( account_id ){
+function getPlaidAccountBalance(account_id) {
 
   let response = [];
   const accountData = getAppPlaidAccountById(account_id);
   const appSettingsData = getAppSettings();
 
-  if( accountData.success === true && appSettingsData.success === true ){
+  if (accountData.success === true && appSettingsData.success === true) {
 
     const plaidBalanceHistoryEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/accounts/balance/get';
-  
+
     let payload = {
       client_id: appSettingsData.result.plaidClientKey,
       secret: appSettingsData.result.plaidSecretKey,
       access_token: accountData.result.access_token,
       options: {
-        account_ids : [ account_id ]
+        account_ids: [account_id]
       }
     };
     response = plaidRequest(plaidBalanceHistoryEndpoint, payload);
@@ -130,22 +127,22 @@ function getPlaidAccountBalance( account_id ){
   return response;
 }
 
-function getPlaidInvestmentsData( account_id ){
+function getPlaidInvestmentsData(account_id) {
 
   let response = [];
   const accountData = getAppPlaidAccountById(account_id);
   const appSettingsData = getAppSettings();
 
-  if( accountData.success === true && appSettingsData.success === true ){
+  if (accountData.success === true && appSettingsData.success === true) {
 
     const plaidInvestmentHistoryEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/investments/holdings/get';
-    
+
     let payload = {
       client_id: appSettingsData.result.plaidClientKey,
       secret: appSettingsData.result.plaidSecretKey,
       access_token: accountData.result.access_token,
       options: {
-        account_ids : [ account_id ]
+        account_ids: [account_id]
       }
     };
 
@@ -154,10 +151,10 @@ function getPlaidInvestmentsData( account_id ){
   return response;
 }
 
-function getPlaidItem(access_token){
+function getPlaidItem(access_token) {
   let response = [];
   const appSettingsData = getAppSettings();
-  if( appSettingsData.success === true ){
+  if (appSettingsData.success === true) {
     const plaidItemEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/item/get';
     let payload = {
       client_id: appSettingsData.result.plaidClientKey,
