@@ -8,7 +8,7 @@ function linkBalanceHistorySheetData(account_id, lastDate){
 
     let account = response.result;
 
-    let sheet = UserSpreadsheet.getSheetByName(USER_BALANCE_HISTORY_SHEET);
+    let sheet = getUserSpreadsheet().getSheetByName(USER_BALANCE_HISTORY_SHEET);
     // Write headers
     let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
@@ -63,7 +63,7 @@ function linkBalanceHistorySheetData(account_id, lastDate){
 
 function clearBalanceHistoryData(account_id){
 
-  const sheet = UserSpreadsheet.getSheetByName(USER_BALANCE_HISTORY_SHEET);
+  const sheet = getUserSpreadsheet().getSheetByName(USER_BALANCE_HISTORY_SHEET);
   const range = sheet.getDataRange();
   const data = range.getValues();
   const columnIndexToCheck = 7; 
@@ -106,7 +106,7 @@ function updateAccountBalanceHistory( account_id ){
     });
 
     if(collectionArr.length > 0 ){
-      var sheet = UserSpreadsheet.getSheetByName(USER_BALANCE_HISTORY_SHEET);
+      var sheet = getUserSpreadsheet().getSheetByName(USER_BALANCE_HISTORY_SHEET);
       // Write headers
       var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
       
@@ -181,7 +181,7 @@ function updateAccountBalanceHistory( account_id ){
 }
 
 function changeAccountNameOnBalanceHistorySheet( account_id, account_name ){
-  let sheet = UserSpreadsheet.getSheetByName(USER_BALANCE_HISTORY_SHEET);
+  let sheet = getUserSpreadsheet().getSheetByName(USER_BALANCE_HISTORY_SHEET);
   var data = sheet.getDataRange().getValues();
   for (var row = 0; row < data.length; row++) {
     if (data[row].includes(account_id)) {
@@ -191,7 +191,7 @@ function changeAccountNameOnBalanceHistorySheet( account_id, account_name ){
 }
 
 function updateAccountIdOnBalanceHistorySheet( account_id, new_id ){
-  let sheet = UserSpreadsheet.getSheetByName(USER_BALANCE_HISTORY_SHEET);
+  let sheet = getUserSpreadsheet().getSheetByName(USER_BALANCE_HISTORY_SHEET);
   var data = sheet.getDataRange().getValues();
   for (var row = 0; row < data.length; row++) {
     if (data[row].includes(account_id)) {
@@ -201,7 +201,7 @@ function updateAccountIdOnBalanceHistorySheet( account_id, new_id ){
 }
 
 function sortingBalanceHistorySheet(){
-  var sheet = UserSpreadsheet.getSheetByName(USER_BALANCE_HISTORY_SHEET);
+  var sheet = getUserSpreadsheet().getSheetByName(USER_BALANCE_HISTORY_SHEET);
   const range = sheet.getDataRange(); 
   range.sort({ column: 2, ascending: false });
 }

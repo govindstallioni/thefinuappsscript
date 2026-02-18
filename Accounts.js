@@ -1,5 +1,5 @@
 function clearAccountData(account_id) {
-  const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+  const sheet = getUserSpreadsheet().getSheetByName(USER_ACCOUNTS_SHEET);
   const range = sheet.getDataRange();
   const data = range.getValues();
   const columnIndexToCheck = 12; 
@@ -23,7 +23,7 @@ function clearAccountData(account_id) {
 }
 
 function linkAccountsSheetData( account_id ){
-  const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+  const sheet = getUserSpreadsheet().getSheetByName(USER_ACCOUNTS_SHEET);
   const ACCOUNT_ID_COL = 12; // column L (Account ID)
 
   // Read only the Account ID column starting from row 2
@@ -56,7 +56,7 @@ function linkAccountsSheetData( account_id ){
 }
 
 function sortingAccountSheetByDate(){
-  const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
+  const sheet = getUserSpreadsheet().getSheetByName(USER_ACCOUNTS_SHEET);
 
   const HEADER_ROW = 1;
   const START_ROW = 2;
@@ -77,42 +77,4 @@ function sortingAccountSheetByDate(){
     { column: DRIVER_COL, ascending: false }, // content first
     { column: SORT_DATE_COL, ascending: false } // newest first (optional)
   ]);
-}
-
-function updateAccountsSheet(oldAccount, newAccount) {
-  const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
-  const normalize = v => v.toLowerCase().trim();
-
-  const maxRows = sheet.getMaxRows();
-  const colB = sheet.getRange(2, 2, maxRows - 1, 1).getValues();
-
-  let lastContentRow = 1;
-  let oldRowIndex = null;
-  let newExists = false;
-
-  colB.forEach((row, i) => {
-    if (row[0]) {
-      lastContentRow = i + 2;
-
-      const value = normalize(row[0]);
-      if (oldAccount && value === normalize(oldAccount)) {
-        oldRowIndex = i + 2;
-      }
-      if (newAccount && value === normalize(newAccount)) {
-        newExists = true;
-      }
-    }
-  });
-
-  // 🔁 Replace old account with new account
-  if (oldRowIndex && newAccount) {
-    sheet.getRange(oldRowIndex, 2).setValue(newAccount);
-    return;
-  }
-
-  // ➕ Add new account if missing
-  if (newAccount && !newExists) {
-    sheet.insertRowsAfter(lastContentRow, 1);
-    sheet.getRange(lastContentRow + 1, 2).setValue(newAccount);
-  }
 }
