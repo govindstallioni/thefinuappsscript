@@ -43,36 +43,37 @@ function linkInvestmentSheet( account_id ){
 }
 
 function formatPlaidInvestments(account_id, investments){
-
+  // Defensive checks: return empty array if investments payload isn't shaped as expected
   var collectionArr = [];
+  if(!investments || typeof investments !== 'object') return collectionArr;
+  var PlaidAccounts = Array.isArray(investments.accounts) ? investments.accounts : [];
+  var PlaidAccountsHoldings = Array.isArray(investments.holdings) ? investments.holdings : [];
+  var PlaidAccountsSecurities = Array.isArray(investments.securities) ? investments.securities : [];
+  if(PlaidAccountsHoldings.length === 0 || PlaidAccountsSecurities.length === 0) return collectionArr;
 
-  var PlaidAccounts = investments.accounts;
-  var PlaidAccountsHoldings = investments.holdings;
-  var PlaidAccountsSecurities = investments.securities;
   var account_name = '';
 
   for( var i = 0; i < PlaidAccountsHoldings.length; i++ ){
-    let holding = PlaidAccountsHoldings[i];
-    let account = PlaidAccounts[0];
+    let holding = PlaidAccountsHoldings[i] || {};
+    let account = PlaidAccounts[0] || {};
     for ( var j = 0; j < PlaidAccountsSecurities.length; j++ ){
-      let securities = PlaidAccountsSecurities[j];
-      //Logger.log(securities.security_id);
-      if( holding.security_id === securities.security_id ){
-        account_name = getAccountNameByAccountId(account_id);
+      let securities = PlaidAccountsSecurities[j] || {};
+      if( holding && holding.security_id && securities && holding.security_id === securities.security_id ){
+        account_name = getAccountNameByAccountId(account_id) || '';
         collectionArr.push({
-          'security_id': holding.security_id,
-          'account_id' : holding.account_id,
+          'security_id': holding.security_id || '',
+          'account_id' : holding.account_id || '',
           'account': account_name,
-          'account_number': account.mask,
-          'cusip': securities.cusip,
-          'ticker': securities.ticker_symbol,
-          'account_name': securities.name,
-          'quantity': holding.quantity,
-          'cost_basis': holding.cost_basis,
-          'price_as_of': holding.institution_price_as_of,
-          'price': holding.institution_price,
-          'value': holding.institution_value,
-          'type': securities.type
+          'account_number': account.mask || '',
+          'cusip': securities.cusip || '',
+          'ticker': securities.ticker_symbol || securities.ticker || '',
+          'account_name': securities.name || '',
+          'quantity': holding.quantity || 0,
+          'cost_basis': holding.cost_basis || 0,
+          'price_as_of': holding.institution_price_as_of || '',
+          'price': holding.institution_price || 0,
+          'value': holding.institution_value || 0,
+          'type': securities.type || ''
         });
       }
     }

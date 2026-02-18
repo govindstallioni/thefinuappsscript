@@ -517,13 +517,25 @@ function buildJointLayout(groupedData, actualMap) {
  */
 function renderJointSheet(sheet, layout) {
 	// Write data starting from row 9, column A (1)
-	sheet.getRange(9, 1, layout.rows.length, 6).setValues(layout.rows);
+
+	// Ensure numeric cells (Cols D-F) are numeric and default to 0 when missing
+	const sanitizedRows = layout.rows.map(row => {
+		const r = row.slice();
+		for (let c = 3; c <= 5; c++) {
+			if (r[c] === null || r[c] === undefined || r[c] === '') r[c] = 0;
+			else r[c] = Number(r[c]) || 0;
+		}
+		return r;
+	});
+	// Write sanitized data
+	sheet.getRange(9, 1, sanitizedRows.length, 6).setValues(sanitizedRows);
 
 	// Color definitions
 	const C_TYPE_BLOCK = '#e68e68'; // Warm Orange/Brown for Type Summary
 	const C_GRP_BLOCK = '#eec49f';  // Light Tan/Peach for Group Summary
 	const C_CAT_BLOCK = '#FFFFFF';      
-	const FMT_NUM = '_($* #,##0.00_);_($* (#,##0.00)_);_($* "-"_);_(@_)';
+	// Show zeros as numeric 0.00 instead of a dash
+	const FMT_NUM = '_($* #,##0.00_);_($* (#,##0.00)_);_($* 0.00_);_(@_)';
 	const FMT_PCT = '0.00%';
 	
 	// Border definitions for the new logic

@@ -8,16 +8,7 @@
  * UPDATE: Applied 'Comfortaa' font family to all output content.
  */
 
-// --- Constants for Column Indices (Read from Control Sheet) ---
-const COL = {
-    CATEGORY: 0, // Placeholder, actual index read from C5
-    GROUP: 1,    // Placeholder, actual index read from C6
-    TYPE: 2,     // Placeholder, actual index read from C7
-    HIDE: 3,     // Placeholder, actual index read from C8
-    NAME1: 4,    // Placeholder, actual index read from C9 (Multiplier)
-    NAME2: 5,    // Placeholder, actual index read from C10 (Multiplier)
-    BUDGET: 6    // Placeholder, actual index read from W2:W12 (dynamic based on month)
-};
+// --- Column mappings are read dynamically from the Definition control sheet ---
 
 /**
  * Main function to populate the Monthly Budget sheet.
@@ -139,19 +130,21 @@ function populateMonthlyBudget() {
             if (!visibleCategories.has(transactionCategory)) {
                 return; 
             }
-            const groupedKey = String(row[TRAN_COL.GROUPED_KEY] || '').trim(); 
-            const owner = row[TRAN_COL.OWNER]; 
+            let groupedKey = String(row[TRAN_COL.GROUPED_KEY] || '').trim();
+            const owner = row[TRAN_COL.OWNER];
 
-            if (groupedKey !== 'Not Grouped' && groupedKey) {
-                if (!formatTransGroup[groupedKey]) {
-                    formatTransGroup[groupedKey] = [];
-                }
-                formatTransGroup[groupedKey].push({
-                    'category': transactionCategory,
-                    'amount': row[TRAN_COL.AMOUNT] || 0,
-                    'owner': owner || 'Joint' 
-                });
+            // Treat non-grouped transactions as their own group keyed by category
+            if (!groupedKey || groupedKey === 'Not Grouped') {
+                groupedKey = transactionCategory;
             }
+            if (!formatTransGroup[groupedKey]) {
+                formatTransGroup[groupedKey] = [];
+            }
+            formatTransGroup[groupedKey].push({
+                'category': transactionCategory,
+                'amount': row[TRAN_COL.AMOUNT] || 0,
+                'owner': owner || 'Joint'
+            });
         }
     });
 
@@ -247,7 +240,8 @@ function populateMonthlyBudget() {
     const typeBg = '#e68e68';
     const groupBg = '#eec49f'; 
     const catBg = '#FFFFFF';   
-    const numFormat = '_($* #,##0.00_);_($* (#,##0.00)_);_($* "-"_);_(@_)';
+    // Show zeros as numeric values instead of a dash
+    const numFormat = '_($* #,##0.00_);_($* (#,##0.00)_);_($* 0.00_);_(@_)';
     const pctFormat = '0.00%';
     let rangeStart = 10;
     

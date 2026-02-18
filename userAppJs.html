@@ -152,7 +152,7 @@ function saveRename( account_id, btnEle ){
   let renameEle = btnEle.closest('#rename-account');
   if (!renameEle) {
     console.error("Cannot find parent container");
-    alert("Technical issue – please try again");
+    showMessage("Technical issue – please try again", 'error');
     return;
   }
   const input = renameEle.querySelector('#newName');
@@ -165,7 +165,7 @@ function saveRename( account_id, btnEle ){
   const newName = input.value.trim();
 
   if (!newName) {
-    alert("Please enter a new name");
+    showMessage("Please enter a new name", 'error');
     input.focus();
     return;
   }
@@ -189,11 +189,11 @@ function saveRename( account_id, btnEle ){
       renameEle.querySelector('.responsemessage').innerHTML = actionFailureMessage(response.message);
       renameEle.querySelector('.responsemessage').classList.remove("hidden");
     }
-  }).withFailureHandler(err => {
-      alert("Failed: " + (err.message || "Unknown error"));
+    }).withFailureHandler(err => {
+      showMessage((err.message || "Unknown error"), 'error');
       //btnEle.disabled = false;
       btnEle.textContent = "Saved";
-  }).updateAccountName(account_id, newName);
+    }).updateAccountName(account_id, newName);
 
 }
 
@@ -207,42 +207,29 @@ function removeAccount(account_id) {
     if( response.status === true ){
       loadConnectedAccounts();
     }
-  }).withFailureHandler(err => {
-      alert("Failed: " + (err.message || "Unknown error"));
-  }).removeAccountFromList(account_id);
+    }).withFailureHandler(err => {
+      showMessage((err.message || "Unknown error"), 'error');
+    }).removeAccountFromList(account_id);
 }
 
 function linkAccountToTemplate(accountId, btnEl) {
   btnEl.disabled = true;
   btnEl.textContent = 'Please wait..';
   google.script.run.withSuccessHandler(function (response) {
-    if( response === true ){
-      btnEl.textContent = "Linking..";
-      const interval = setInterval(function () {
-        google.script.run.withSuccessHandler(function (status) {
-          if (status === "COMPLETED") {
-            clearInterval(interval);
-            btnEl.textContent = "Linked";
-            google.script.run.resetTaskStatus();
-            viewAccountDetail(accountId);
-            alert("Account linked successfully.");
-          } else if (status.startsWith("ERROR")) {
-            google.script.run.resetTaskStatus();
-            clearInterval(interval);
-            btnEl.textContent = "Retry";
-            btnEl.disabled = false;
-            alert(status);
-          }
-        }).checkTaskStatus();
-      }, 5000);
-    }else{
+    if (response === true) {
+      // Server opened a confirmation modal. Do not assume the user confirmed.
+      // Reset the button so Cancel closes the modal without leaving the button in a 'linking' state.
+      btnEl.disabled = false;
+      btnEl.textContent = 'Link to Template';
+      showMessage('Confirm import to proceed.', 'success', 3000);
+    } else {
       btnEl.disabled = false;
       btnEl.textContent = 'Link to Template';
     }
-  }).withFailureHandler(function (err) {
+    }).withFailureHandler(function (err) {
     btnEl.disabled = false;
     btnEl.textContent = "Retry";
-    alert(err.message);
+    showMessage(err.message || 'Unknown error', 'error');
   }).confirmLinkAccountToTemplate(accountId);
 }
 
@@ -250,31 +237,19 @@ function unlinkAccountFromTemplate(account_id, btnEl){
   btnEl.disabled = true;
   btnEl.textContent = "Please wait..";
   google.script.run.withSuccessHandler(function(response) {
-    if( response === true ){
-      btnEl.textContent = "Unlinking..";
-      const interval = setInterval(function() {
-        google.script.run.withSuccessHandler(function(status) {
-          if (status === 'COMPLETED') {
-            clearInterval(interval);
-            btnEl.textContent = "Unlinked";
-            viewAccountDetail(account_id);
-            alert("Account unlinked successfully.");
-          } else if (status.startsWith("ERROR")) {
-            clearInterval(interval);
-            btnEl.textContent = "Retry";
-            btnEl.disabled = false;
-            alert(status);
-          }
-        }).checkTaskStatus();
-      }, 5000);
-    }else{
+    if (response === true) {
+      // Server opened a confirmation modal. Do not start unlinking automatically.
+      btnEl.disabled = false;
+      btnEl.textContent = 'Unlink from Spreadsheet';
+      showMessage('Confirm unlink to proceed.', 'success', 3000);
+    } else {
       btnEl.disabled = false;
       btnEl.textContent = 'Unlink from Spreadsheet';
     }
   }).withFailureHandler(function (err) {
     btnEl.disabled = false;
     btnEl.textContent = "Retry";
-    alert(err.message);
+    showMessage(err.message || 'Unknown error', 'error');
   }).confirmUnlinkAccountFromTemplate(account_id);
 }
 
@@ -322,7 +297,7 @@ function showExistingAccountFields(thisEle){
   google.script.run.withSuccessHandler(function(response){
     formEle.querySelector('#existing-account-fields').innerHTML = response;
   }).withFailureHandler(function(error){
-    alert("Failed: " + (error.message || "Unknown error"));
+    showMessage((error.message || "Unknown error"), 'error');
   }).showExistingAccountFormFieldsTemplate();
 }
 function showManualAccountFields(thisEle){
@@ -338,7 +313,7 @@ function showManualAccountFields(thisEle){
   google.script.run.withSuccessHandler(function(response){
     formEle.querySelector('#manual-account-fields').innerHTML = response;
   }).withFailureHandler(function(error){
-    alert("Failed: " + (error.message || "Unknown error"));
+    showMessage((error.message || "Unknown error"), 'error');
   }).showManualAccountFormFieldsTemplate();
 }
 
@@ -396,7 +371,7 @@ function submitBalanceHistoryForm(event){
       submitBtn.textContent = "Add Balance History";
     }
   }).withFailureHandler(function(error){
-    alert("Failed: " + (error.message || "Unknown error"));
+    showMessage((error.message || "Unknown error"), 'error');
     submitBtn.disabled = false;
     submitBtn.textContent = "Add Balance History";
   }).submitBalanceHistoryFormData(data);
@@ -409,7 +384,7 @@ function generateFinancialReport(btnEle){
     btnEle.disabled = false;
     btnEle.textContent = "Generate Report";
   }).withFailureHandler(function(error){
-    alert("Failed: " + (error.message || "Unknown error, Please reopen the app."));
+    showMessage((error.message || "Unknown error, Please reopen the app."), 'error');
     btnEle.disabled = false;
     btnEle.textContent = "Generate Financial Report";
   }).generateFinancialReport();
@@ -428,9 +403,9 @@ function toggleAutoSync(btnEle, enable){
       btnEle.classList.remove("theme-bg-light");
       btnEle.classList.add("theme-bg-primary");
     }
-    alert(response.message);
+    showMessage(response.message, 'success');
   }).withFailureHandler(function(error){
-    alert("Failed: " + (error.message || "Unknown error"));
+    showMessage((error.message || "Unknown error"), 'error');
     btnEle.disabled = false;
     btnEle.textContent = enable ? "Enable Auto-Sync" : "Disable Auto-Sync";
   }).toggleAutoSyncSetting(enable);
@@ -443,7 +418,7 @@ function handleCancelSubscription(btn){
     if (btn) { btn.disabled = false; btn.innerText = orig; }
     google.script.run.showSidebar();
   }).withFailureHandler( function(error){
-    alert("Failed: " + (error.message || "Unknown error"));
+    showMessage((error.message || "Unknown error"), 'error');
     btn.disabled = false;
     btn.innerText = orig;
   }).cancelUserSubscription();

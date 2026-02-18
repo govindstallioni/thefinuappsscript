@@ -39,19 +39,25 @@ function linkBalanceHistorySheetData(account_id, lastDate){
       rowValues.push(value);
     }
 
-    let lastrow = sheet.getLastRow() + 1;
-    for( var row = 1; row < lastrow; row++ ){
-      if( sheet.getRange(lastrow, sheet.getLastColumn()).getValue() === '' ){
-        var cell = sheet.getRange(lastrow, 1, 1, sheet.getLastColumn());
-        cell.setValues([rowValues]);
-        cell.setFontSize(9)
-        .setFontFamily("Comfortaa")
-        .setFontColor("#000000")
-        .setFontWeight("bold");
-        lastrow++;
-        break;
+    // Determine index of Account ID header (if present) to enforce idempotency
+    const accountIdColIndex = headers.findIndex(h => h === 'Account ID');
+    if (accountIdColIndex >= 0) {
+      const values = sheet.getDataRange().getValues();
+      for (let r = 1; r < values.length; r++) {
+        if (values[r] && values[r][accountIdColIndex] === account_id) {
+          return; // already have a balance history row for this account
+        }
       }
     }
+
+    // Append the new row and apply formatting
+    sheet.appendRow(rowValues);
+    const appendedRow = sheet.getLastRow();
+    const cell = sheet.getRange(appendedRow, 1, 1, sheet.getLastColumn());
+    cell.setFontSize(9)
+      .setFontFamily("Comfortaa")
+      .setFontColor("#000000")
+      .setFontWeight("bold");
   }
 }
 
@@ -160,6 +166,14 @@ function updateAccountBalanceHistory( account_id ){
       }
       const range = sheet.getDataRange(); 
       range.sort({ column: 2, ascending: false });
+    }
+    else {
+      // No balances returned from Plaid — ensure at least one balance history row exists
+      try {
+        linkBalanceHistorySheetData(account_id, getTodayDate());
+      } catch (e) {
+        Logger.log('linkBalanceHistorySheetData error: ' + e);
+      }
     }
   }catch(e){
     Logger.log("Error:"+ e);
