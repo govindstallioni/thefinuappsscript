@@ -183,6 +183,7 @@ function refreshSetupProgressUI(){
   // fetch current progress from server and update UI
   google.script.run.withSuccessHandler(function(progress){
     if (!progress) return;
+    console.log(progress);
     applyProgressToSteps(progress);
   }).getSetupWizardProgress();
 }

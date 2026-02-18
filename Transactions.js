@@ -30,6 +30,40 @@ function linkTransactionSheet( account_id ){
     sortingTransactionSheet();
   }
 }
+
+function getPlaidTransactionAccount( account_id ){
+
+
+  var response = getAppPlaidAccountById(account_id);
+
+  var collection = null;
+
+  if( response.success === true ){
+    let account = response.result;
+    var account_name    = '';
+    var account_number  = '';
+    let accounts        = account.accounts;
+    let item            = response.item;
+    let institution_id  = item.institution_id;
+    let institution     = item.institution_name;
+
+    accounts.forEach( function( account ){
+      account_number  = account.mask;
+      account_name    = account.name;
+    });
+    
+    collection = {
+      'account_number': account_number,
+      'account_name'  : account_name,
+      'institution_id': institution_id,
+      'institution'   : institution
+    };
+  }
+  
+  return collection;
+}
+
+
 function linkPlaidAddedTransactions( transactions, account ){
   
   var collection = [];
@@ -121,9 +155,18 @@ function linkPlaidModifiedTransactions( transactions, account ){
     });
   }
 }
+
+function removeTransactionItem( transaction_id ){
+  const sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+  if( getTransactionRow(transaction_id) != null ){
+    let row = getTransactionRow(transaction_id);
+    sheet.deleteRow(row);
+  }
+}
+
 function getTransactionRow( transaction_id ){
 
-  const sheet = getUserSpreadsheet().getSheetByName(USER_TRANSACTIONS_SHEET);
+  const sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
   var data = sheet.getDataRange().getValues();
 
   // Loop through rows to find the value
@@ -137,7 +180,7 @@ function getTransactionRow( transaction_id ){
 }
 
 function clearTransactionsData( account_id ){
-  const sheet = getUserSpreadsheet().getSheetByName(USER_TRANSACTIONS_SHEET);
+  const sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
   const range = sheet.getDataRange();
   const data = range.getValues();
   const columnIndexToCheck = 11; 
@@ -164,7 +207,7 @@ function clearTransactionsData( account_id ){
 
 function insertTransactionsData(collection){
   
-  var sheet = getUserSpreadsheet().getSheetByName(USER_TRANSACTIONS_SHEET);
+  var sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
   let lastrow = sheet.getLastRow() + 1;
@@ -181,7 +224,7 @@ function insertTransactionsData(collection){
 }
 
 function sortingTransactionSheet(){
-  var sheet = getUserSpreadsheet().getSheetByName(USER_TRANSACTIONS_SHEET);
+  var sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
   const range = sheet.getDataRange(); 
   range.sort({ column: 2, ascending: false });
 }
@@ -344,7 +387,7 @@ function updateTransactionsData( transaction_id = null, transaction = null){
   if( getTransactionRow(transaction_id) != null ){
 
     const row = getTransactionRow(transaction_id);
-    var sheet = getUserSpreadsheet().getSheetByName(USER_TRANSACTIONS_SHEET);
+    var sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
     var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
     var rowValues = [];
@@ -398,8 +441,28 @@ function updateTransactionsData( transaction_id = null, transaction = null){
   }
 }
 
+
+function getTransactionLastUpdateDate( account_id ){
+  let spreadsheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+  var collections = spreadsheet.getDataRange().getValues();
+  //Removed sheet title from the collection
+  collections.splice(0, 1);
+  var date = null;
+  collections.some((row, index) => {
+    //Logger.log(row[10]);
+    if( row[10] === account_id ){
+      if ( typeof row[8] === "string" && !row[8].toLowerCase().includes("pending") ) {
+        date = row[1];
+        return true; // Exit the loop when condition is met
+      }
+    }
+    return false;
+  });
+  return date;
+}
+
 function changeAccountNameOnTransactionSheet( account_id, account_name ){
-  let sheet = getUserSpreadsheet().getSheetByName(USER_TRANSACTIONS_SHEET);
+  let sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
   var data = sheet.getDataRange().getValues();
   //Logger.log(data);
   for (var row = 0; row < data.length; row++) {
@@ -411,7 +474,7 @@ function changeAccountNameOnTransactionSheet( account_id, account_name ){
 }
 
 function updateAccountIdOnTransactionSheet( account_id, new_id ){
-  let sheet = getUserSpreadsheet().getSheetByName(USER_TRANSACTIONS_SHEET);
+  let sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
   var data = sheet.getDataRange().getValues();
   for (var row = 0; row < data.length; row++) {
     if (data[row].includes(account_id)) {

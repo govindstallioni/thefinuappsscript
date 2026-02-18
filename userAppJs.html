@@ -328,6 +328,7 @@ function submitBalanceHistoryForm(event){
     data[key] = value;
   });
   // all fields are required validation - account-name, balance-input, date-input
+  console.log(data);
   if( !data['accountBalance'] || data['accountBalance'].trim() === '' ){
     responseEle.classList.add('error', 'text-red-600');
     responseEle.innerHTML = actionFailureMessage("Please enter the balance");

@@ -3,45 +3,53 @@
  * Called from the sidebar when it loads.
  */
 function validateUserSession() {
-  try {
-    const userEmail = getUserEmail();
-    const spreadsheetId = getUserSpreadsheetId();
 
+  try {
+    const userEmail = UserEmail;
+    const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+    
+    // If email is empty, the user might need to re-authorize
     if (!userEmail) {
-      throw new Error('Email access denied. Please re-authorize the add-on.');
+      throw new Error("Email access denied. Please re-authorize the add-on.");
     }
 
+    // Your External API Endpoint
     const apiUrl = API_ENDPOINT + 'api/users/validate-user';
+    
     const payload = {
       email: userEmail,
       spreadsheetId: spreadsheetId,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString()
     };
 
-    const response = requestJson(apiUrl, {
+    const options = {
       method: 'post',
       contentType: 'application/json',
       payload: JSON.stringify(payload),
-    });
-
-    const result = response.body || {};
-
-    if (result && result.data) {
-      const d = result.data;
-      const found = d.subscriptionId || d.subscription_id || (d.subscriptions && d.subscriptions.id) || (d.subscription && d.subscription.id) || d.subId || null;
-      if (found) {
-        d.subscriptionId = found;
-      }
-    }
-
-    return {
-      success: response.success,
-      result: result,
-      statusCode: response.statusCode,
-      error: response.error || null,
+      muteHttpExceptions: true
     };
+
+    const response = UrlFetchApp.fetch(apiUrl, options);
+    const result = JSON.parse(response.getContentText());
+    // Normalize subscriptionId (accept common variants) so callers can reliably read it
+    try{
+      if(result && result.data){
+        const d = result.data;
+        const found = d.subscriptionId || d.subscription_id || (d.subscriptions && d.subscriptions.id) || (d.subscription && d.subscription.id) || d.subId || null;
+        if(found){
+          d.subscriptionId = found;
+        }
+      }
+    }catch(e){
+      // ignore normalization errors
+    }
+    return {
+      success: response.getResponseCode() === 200,
+      result
+    };
+
   } catch (e) {
-    Logger.log(JSON.stringify(e, null, 2));
+    Logger.log( JSON.stringify(e, null, 2) );
     return { success: false, error: e.toString() };
   }
 }
@@ -49,135 +57,176 @@ function validateUserSession() {
 function getAppSettings() {
   try {
     const apiUrl = API_ENDPOINT + 'api/settings';
-    const response = requestJson(apiUrl, { method: 'get' });
-    return {
-      success: response.success,
-      result: response.body,
-      statusCode: response.statusCode,
-      error: response.error || null,
+
+    const options = {
+      method: 'get',
+      muteHttpExceptions: true
     };
+
+    const response = UrlFetchApp.fetch(apiUrl, options);
+    const result = JSON.parse(response.getContentText());
+  
+    return {
+      success: response.getResponseCode() === 200,
+      result
+    };
+
   } catch (e) {
     return {
       success: false,
-      error: e.toString(),
+      error: e.toString()
     };
   }
 }
 
-function storePlaidAPIAccounts(data) {
+function storePlaidAPIAccounts( data ){
+
   try {
-    const userEmail = getUserEmail();
-
+    const userEmail = UserEmail;
+    const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+    
+    // If email is empty, the user might need to re-authorize
     if (!userEmail) {
-      throw new Error('Email access denied. Please re-authorize the add-on.');
+      throw new Error("Email access denied. Please re-authorize the add-on.");
     }
-
+    // Your External API Endpoint
     const apiUrl = API_ENDPOINT + 'api/accounts/store-plaid';
-    const response = requestJson(apiUrl, {
+    
+    const options = {
       method: 'post',
       contentType: 'application/json',
       payload: JSON.stringify(data),
-    });
-
-    return {
-      success: response.success,
-      result: response.body,
-      statusCode: response.statusCode,
-      error: response.error || null,
+      muteHttpExceptions: true
     };
+
+    const response = UrlFetchApp.fetch(apiUrl, options);
+    const result = JSON.parse(response.getContentText());
+    //Logger.log(result);
+    return {
+      success: response.getResponseCode() === 200,
+      result
+    };
+
   } catch (e) {
     return { success: false, error: e.toString() };
   }
 }
 
 function getAppPlaidConnectedAccounts() {
+
   try {
-    const apiUrl = API_ENDPOINT + 'api/accounts/get-by-email/' + encodeURIComponent(getUserEmail());
-    const response = requestJson(apiUrl, { method: 'get' });
+
+    const apiUrl = API_ENDPOINT + 'api/accounts/get-by-email/'+ UserEmail;
+
+    const options = {
+      method: 'get',
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(apiUrl, options);
+    const result = JSON.parse(response.getContentText());
 
     return {
-      success: response.success,
-      result: response.body,
-      statusCode: response.statusCode,
-      error: response.error || null,
+      success: response.getResponseCode() === 200,
+      result
     };
+
   } catch (e) {
     return {
       success: false,
-      error: e.toString(),
+      error: e.toString()
     };
   }
 }
 
-function getAppPlaidAccountById(accountId) {
+function getAppPlaidAccountById( accountId ){
   try {
-    const apiUrl = API_ENDPOINT + 'api/accounts/' + accountId;
-    const response = requestJson(apiUrl, { method: 'get' });
+
+    const apiUrl = API_ENDPOINT + 'api/accounts/'+ accountId;
+
+    const options = {
+      method: 'get',
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(apiUrl, options);
+    const result = JSON.parse(response.getContentText());
 
     return {
-      success: response.success,
-      result: response.body,
-      statusCode: response.statusCode,
-      error: response.error || null,
+      success: response.getResponseCode() === 200,
+      result
     };
+
   } catch (e) {
     return {
       success: false,
-      error: e.toString(),
+      error: e.toString()
     };
   }
 }
 
-function updateAppAccountDetailById(accountId, data) {
+function updateAppAccountDetailById( accountId, data ){
+
   try {
-    const apiUrl = API_ENDPOINT + 'api/accounts/update-account/' + accountId;
-    const response = requestJson(apiUrl, {
+
+    const apiUrl = API_ENDPOINT + 'api/accounts/update-account/'+ accountId;
+
+    const options = {
       method: 'patch',
       contentType: 'application/json',
       payload: JSON.stringify(data),
-    });
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(apiUrl, options);
+    const result = JSON.parse(response.getContentText());
 
     return {
-      success: response.success,
-      result: response.body,
-      statusCode: response.statusCode,
-      error: response.error || null,
+      success: response.getResponseCode() === 200,
+      result
     };
+
   } catch (e) {
     return {
       success: false,
-      error: e.toString(),
+      error: e.toString()
     };
   }
 }
 
 /**
  * Cancels the user's subscription by notifying the external API.
+ * The API will receive the user's email in the payload.
  */
-function confirmCancelUserSubscription() {
-  try {
+function confirmCancelUserSubscription(){
+  try{
     const apiUrl = API_ENDPOINT + 'api/payment/unsubscribe';
     const payload = {
-      email: getUserEmail(),
+      email: UserEmail,
+      //spreadsheetId: SpreadsheetApp.getActiveSpreadsheet().getId(),
+      //timestamp: new Date().toISOString()
     };
 
-    const response = requestJson(apiUrl, {
+    const options = {
       method: 'post',
       contentType: 'application/json',
       payload: JSON.stringify(payload),
-    });
+      muteHttpExceptions: true
+    };
 
-    if (response.success) {
-      try { clearSubscriptionProgress(); } catch (e) {}
+    const response = UrlFetchApp.fetch(apiUrl, options);
+    const result = JSON.parse(response.getContentText());
+
+    // If API indicates success, clear local subscription progress
+    if (response.getResponseCode() === 200) {
+      try{ clearSubscriptionProgress(); }catch(e){}
     }
 
     return {
-      success: response.success,
-      result: response.body,
-      statusCode: response.statusCode,
-      error: response.error || null,
+      success: response.getResponseCode() === 200,
+      result
     };
-  } catch (e) {
+  }catch(e){
     return { success: false, error: e.toString() };
   }
 }
