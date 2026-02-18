@@ -1,0 +1,64 @@
+<script type="text/javascript">
+
+const loaderEle = document.getElementById('loader');
+const appNotificationEle = document.getElementById('app-notification-action');
+const mainAppEle = document.getElementById('main-app');
+
+const successIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="12" fill="#16a34a"/>
+  <path d="M7 12l3 3 7-7" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
+
+const errorIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="12" fill="#dc2626"/>
+<path d="M15 9l-6 6M9 9l6 6" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+</svg>`;
+
+function buttonEventStart(btnEle, text){
+  const btnText = btnEle.querySelector('.btn-text');
+  const btnSpinner = btnEle.querySelector('.btn-spinner');
+  btnText.innerText = text; 
+  btnEle.disabled = true;
+  btnSpinner.classList.remove('hidden');
+}
+
+function buttonEventEnd(btnEle, text){
+  const btnText = btnEle.querySelector('.btn-text');
+  const btnSpinner = btnEle.querySelector('.btn-spinner');
+  btnText.innerText = text; 
+  btnEle.disabled = false;
+  btnSpinner.classList.add('hidden');
+}
+
+function actionSuccessMessage( text ){
+  return `<div class="flex p-2 bg-green-100 border border-green-500 gap-2 text-xs">
+      ${successIcon}
+      <span class="text-green-600">${ text }</span>
+    </div>`;
+}
+
+function actionFailureMessage( text ){
+  return `<div class="flex p-2 bg-red-100 border border-red-500 gap-2 text-xs">
+      ${errorIcon}
+      <span class="text-red-600">${ text }</span>
+    </div>`;
+}
+
+function reloadToSidebar(){
+  google.script.run.showSidebar();
+}
+
+function showMessage(msg, type, duration){
+  // type: 'error' or 'success'
+  const container = document.getElementById('app-notification-action') || document.getElementById('statusBanner');
+  if(!container){
+    try{ alert(msg); }catch(e){}
+    return;
+  }
+  container.innerHTML = type === 'error' ? actionFailureMessage(msg) : actionSuccessMessage(msg);
+  container.classList.remove('hidden');
+  if(type !== 'error'){
+    setTimeout(function(){ container.classList.add('hidden'); container.innerHTML = ''; }, duration || 5000);
+  }
+}
+</script>

@@ -1,0 +1,157 @@
+<div id="mainTab">
+  <!-- Tabs -->
+  <div class="flex border-b border-gray-400 bg-white sticky top-0 z-10">
+    <button 
+      onclick="showTab('accounts')" 
+      id="btn-accounts" 
+      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition active">Accounts
+    </button>
+    <button 
+      onclick="showTab('settings')" 
+      id="btn-settings" 
+      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition">Settings
+    </button>
+    <button 
+      onclick="showTab('support')" 
+      id="btn-support"
+      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition">Support
+    </button>
+    <button 
+      onclick="showTab('reports')" 
+      id="btn-reports"
+      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition">Reports
+    </button>
+  </div>
+
+  <!-- Tab Contents -->
+  <div id="tab-accounts" class="py-4 px-0 tab-content">
+    <div class="flex justify-between items-center mb-4">
+      <button onclick="linkNewAccount()"
+      class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium border border-gray-400 transition">+ Link New Account</button>
+      <button onclick="addNewBalanceHistory(this)"
+      class="cursor-pointer w-full ml-2 py-2 px-2 theme-bg-semi-light rounded-lg font-medium border border-gray-400 transition">+ Add Balance History</button>
+    </div>
+
+    <!-- Accounts list -->
+    <div id="connected-account-list" class="grid gap-2 hidden"></div>
+
+    <!-- Account Details -->
+    <div id="account-detail" class="hidden"></div>
+    <!-- Rename Account -->
+    <div id="rename-account" class="hidden"></div>
+    <!-- Balance History -->
+    <div id="balance-history" class="hidden"></div>
+    <!-- Loader -->
+    <div class="tab-loader hidden text-center py-10">
+      <div class="spinner"></div>
+      <p class="mt-4 text-gray-600 font-medium">Loading...</p>
+    </div>
+  </div>
+
+  <div id="tab-settings" class="py-4 px-0 tab-content hidden">
+    <!-- Your settings content here -->
+    <? if ( isAutoSyncEnabled ) { ?>
+      <button onclick="toggleAutoSync(this, false)"
+      class="cursor-pointer w-full py-2 px-2 theme-bg-light text-white rounded-lg font-medium transition">Disable Auto-Sync</button>
+    <? } else { ?>
+      <button onclick="toggleAutoSync(this, true)"
+      class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Enable Auto-Sync</button>
+    <? } ?>
+    <div class="mt-4">
+      <button id="cancel-subscription-btn" onclick="handleCancelSubscription(this)"
+        class="cursor-pointer w-full py-2 px-2 bg-red-700 text-white rounded-lg font-medium transition">
+        Cancel Subscription
+      </button>
+    </div>
+  </div>
+
+  <div id="tab-support" class="py-4 px-0 tab-content hidden">
+    <!-- FAQ Card -->
+    <div class="bg-white rounded-xl border border-gray-400 overflow-hidden mb-2">
+      <div class="p-5">
+        <h3 class="font-semibold text-gray-900 mb-2">FAQ</h3>
+        <p class="text-gray-600 leading-relaxed">
+          FAQs within ThefinU provide quick and clear answers to common questions, helping users navigate the platform and better understand its features and services.
+        </p>
+      </div>
+      <div class="px-5 py-4 bg-gray-50 border-t border-gray-400 text-center">
+        <a href="http://www.thefinu.com/faqs" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="inline-block px-6 py-2 theme-bg-primary text-white font-medium rounded-lg  transition">View FAQs</a>
+      </div>
+    </div>
+
+    <!-- Suggest a Feature Card -->
+    <div class="bg-white rounded-xl border border-gray-400 overflow-hidden mb-2">
+      <div class="p-5">
+        <h3 class="font-semibold text-gray-900 mb-2">Suggest a Feature</h3>
+        <p class="text-gray-600 leading-relaxed">
+          The 'Suggest a Feature' option in ThefinU allows users to share ideas and recommendations for new features, helping us improve the platform based on your feedback.
+        </p>
+      </div>
+      <div class="px-5 py-4 bg-gray-50 border-t border-gray-400 text-center">
+        <a href="http://www.thefinu.com/contactus-requestafeature" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="inline-block px-6 py-2 theme-bg-primary text-white font-medium rounded-lg  transition">
+          Suggest a Feature
+        </a>
+      </div>
+    </div>
+
+    <!-- Contact Us Card -->
+    <div class="bg-white rounded-xl border border-gray-400 overflow-hidden mb-2">
+      <div class="p-5">
+        <h3 class="font-semibold text-gray-900 mb-2">Contact Us</h3>
+        <p class="text-gray-600 leading-relaxed">
+          ThefinU enables users to easily reach out for support, ask questions, or provide feedback directly to our team.
+        </p>
+      </div>
+      <div class="px-5 py-4 bg-gray-50 border-t border-gray-400 text-center">
+        <a href="http://www.thefinu.com/contactus-requestafeature" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="inline-block px-6 py-2 theme-bg-primary text-white font-medium rounded-lg  transition">
+          Contact Us
+        </a>
+      </div>
+    </div>
+  </div>
+  <div id="tab-reports" class="py-4 px-0 tab-content hidden">
+    <!-- Your reports content here -->
+    <p class="text-gray-600">Before you populate report, please make sure that accounts are connected with Owner, Group and Asset/Liability. Otherwise data won't generate full report</p>
+    <div class="mt-4">
+      <button onclick="generateFinancialReport(this)"
+      class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Generate Report</button>
+  </div>
+</div>
+<script>
+function handleCancelSubscription(btn){
+  // Ask server to show Google UI confirmation dialog
+  google.script.run.withSuccessHandler(function(confirmed){
+    if (!confirmed) return;
+    if (btn) {
+      btn.disabled = true;
+      var origText = btn.innerText;
+      btn.innerText = 'Cancelling...';
+    }
+    google.script.run.withSuccessHandler(function(resp){
+      if (btn) { btn.disabled = false; btn.innerText = origText; }
+      if (resp && resp.success === true){
+        // Use server-side UI alert to notify as well
+        try{ google.script.run.showCancelSubscriptionResult(); }catch(e){}
+        try{ google.script.run.clearSubscriptionProgress(); }catch(e){}
+        // reload the sidebar to reflect changes
+        location.reload();
+      }else{
+        const msg = (resp && resp.result && resp.result.message) || resp.error || 'Failed to cancel subscription.';
+        alert(msg);
+      }
+    }).withFailureHandler(function(err){
+      if (btn) { btn.disabled = false; btn.innerText = origText; }
+      alert('Error cancelling subscription: ' + err);
+    }).cancelUserSubscription();
+  }).showCancelSubscriptionConfirm();
+}
+</script>
