@@ -4,6 +4,7 @@
  * 1. Populates "Actual Cash Flow" for both Master and Monthly columns.
  * 2. Updated Currency Format to show $0.00 instead of dashes for zero values.
  * 3. Maintains all existing robust key matching and year filtering.
+ * ADDITIONAL FIX: Populates "Budget Cash Flow" in row 3 similar to "Actual Cash Flow" in row 4.
  */
 function populateJointYearlyBudget() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -157,6 +158,8 @@ function populateJointYearlyBudget() {
   // Initialize for Cash Flow Calculation
   const monthlyAcf1 = Array(12).fill(0);
   const monthlyAcf2 = Array(12).fill(0);
+  const monthlyBcf1 = Array(12).fill(0);
+  const monthlyBcf2 = Array(12).fill(0);
 
   sortedTypes.forEach(type => {
     const isIncome = (type === "Income" || type === "Transfers");
@@ -178,6 +181,8 @@ function populateJointYearlyBudget() {
           groupTotals.b2[m]+=c.budget2[m]; groupTotals.a2[m]+=c.actual2[m];
           monthlyAcf1[m] += (c.actual1[m] * mult);
           monthlyAcf2[m] += (c.actual2[m] * mult);
+          monthlyBcf1[m] += (c.budget1[m] * mult);
+          monthlyBcf2[m] += (c.budget2[m] * mult);
         }
       });
       pushSpacer(mainDataRows[0].length, nameRows, mainDataRows, metaRows);
@@ -190,6 +195,15 @@ function populateJointYearlyBudget() {
     });
     updateBlock(mainDataRows, typeIdx, buildRows(type, typeTotals.b1, typeTotals.a1, typeTotals.b2, typeTotals.a2, type));
   });
+
+  // Write Budget Cash Flow Row (Row 3)
+  const yearlyBcf1 = safeSum(monthlyBcf1), yearlyBcf2 = safeSum(monthlyBcf2);
+  const row3Update = [yearlyBcf1, yearlyBcf2, yearlyBcf1 + yearlyBcf2, ""];
+  for (let m = 0; m < 12; m++) {
+    row3Update.push(monthlyBcf1[m], monthlyBcf2[m], monthlyBcf1[m] + monthlyBcf2[m]);
+  }
+  outSheet.getRange(3, 4, 1, row3Update.length).setValues([row3Update]);
+  outSheet.getRange('C3').setValue("Budget Cash Flow");
 
   // Write Cash Flow Row (Row 4)
   const yearlyAcf1 = safeSum(monthlyAcf1), yearlyAcf2 = safeSum(monthlyAcf2);
@@ -207,7 +221,7 @@ function populateJointYearlyBudget() {
     outSheet.getRange(startRow, 2, mainDataRows.length, 1).setValues(nameRows.map(x => [x])).setFontFamily("Comfortaa").setFontSize(10);
     outSheet.getRange(startRow, 3, mainDataRows.length, width).setValues(mainDataRows).setFontFamily("Comfortaa").setFontSize(10);
 
-    const cRanges = [`D4:${finalCol}4`], pRanges = [], mRanges = [], rBRanges = [], bBRanges = [];
+    const cRanges = [`D3:${finalCol}3`, `D4:${finalCol}4`], pRanges = [], mRanges = [], rBRanges = [], bBRanges = [];
 
     for (let i = 0; i < mainDataRows.length; i++) {
       const r = startRow + i;

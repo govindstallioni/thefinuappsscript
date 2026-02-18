@@ -872,11 +872,13 @@ function startLinkingProcess(accountId){
 
     // Process payload locally (no external upload/fetch)
     try{
+
       userProperties.setProperty('TASK_STATUS','PROCESSING');
       userProperties.setProperty('LINK_ACCOUNT_ID', accountId);
 
       // Combine added and modified transactions for insertion
       var allTransactions = (payload.added || []).concat(payload.modified || []);
+      removeTransactionsRowIfAccountIDIsEmpty();
       if( Array.isArray(allTransactions) && allTransactions.length > 0 ){
         var txRows = [];
         let account_response = getAppPlaidAccountById( accountId );
@@ -942,51 +944,6 @@ function startLinkingProcess(accountId){
     Logger.log('startLinkingProcess error: ' + e.toString());
     SpreadsheetApp.getUi().alert('Something went wrong.');
     return false;
-  }
-}
-
-// processLinkAccountInterval removed: synchronous polling is used instead.
-
-function processLinkAccountTask() {
-  const lock = LockService.getUserLock();
-  lock.waitLock(30000);
-
-  const props = PropertiesService.getUserProperties();
-  const accountId = props.getProperty('LINK_ACCOUNT_ID');
-
-  if (!accountId) return;
-
-  try {
-    // --- PLAID IMPORT PIPELINE ---
-    installFeaturedTemplates();
-    linkTransactionSheet(accountId);
-    if (checkItemProductSupport(accountId, 'investments')) {
-      linkInvestmentSheet(accountId);
-    }
-    updateAccountBalanceHistory(accountId);
-    linkAccountsSheetData(accountId);
-    updateAppAccountDetailById(accountId, {
-      is_linked: true,
-      status: true,
-      updates: false,
-      linked_date: getTodayDateTime()
-    });
-
-    reApplyFormulaToSpreadsheet();
-
-    populateNetWorth();
-    populateJointNetWorth();
-
-    SpreadsheetApp.flush();
-
-    props.setProperty('TASK_STATUS', 'COMPLETED');
-    props.deleteProperty('LINK_ACCOUNT_ID');
-
-  } catch (e) {
-    props.setProperty('TASK_STATUS', 'ERROR: ' + e.message);
-  } finally {
-    lock.releaseLock();
-    cleanupTriggers_('processLinkAccountTask');
   }
 }
 
@@ -1071,44 +1028,6 @@ function confirmUnlinkAccountFromTemplateConfirmed(accountId){
   }catch(e){
     userProperties.setProperty('TASK_STATUS','ERROR: ' + e.toString());
     return { success: false, error: e.toString() };
-  }
-}
-
-function processUnlinkAccountTask(accountIdParam) {
-  const lock = LockService.getUserLock();
-  lock.waitLock(30000);
-
-  const props = PropertiesService.getUserProperties();
-  const accountId = accountIdParam || props.getProperty('UNLINK_ACCOUNT_ID');
-
-  if (!accountId) return { success: false, error: 'missing_accountId' };
-
-  try {
-    // --- DATA CLEANUP ---
-    clearTransactionsData(accountId);
-    clearInvestmentsData(accountId);
-    clearBalanceHistoryData(accountId);
-    clearAccountData(accountId);
-    updateAppAccountDetailById(accountId, {
-      is_linked: false,
-      status: true,
-      updates: false,
-      linked_date: getTodayDateTime()
-    });
-
-    populateNetWorth();
-    populateJointNetWorth();
-
-    SpreadsheetApp.flush();
-    props.setProperty('TASK_STATUS', 'COMPLETED');
-    props.deleteProperty('UNLINK_ACCOUNT_ID');
-    cleanupTriggers_('processUnlinkAccountTask');
-    return { success: true };
-  } catch (e) {
-    props.setProperty('TASK_STATUS', 'ERROR: ' + e.message);
-    return { success: false, error: e.message };
-  } finally {
-    lock.releaseLock();
   }
 }
 
@@ -1282,6 +1201,7 @@ function installFeaturedTemplates(){
 
   let transactionSheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
   if( transactionSheet ){
+    removeTransactionsRowIfAccountIDIsEmpty();
     if( transactionSheet.getLastRow() > 2 ){
       const response = getAppSettings();
       if( response.success === true ){
@@ -1907,5 +1827,13 @@ function insertInvestmentBatchSafe(invObjects){
     return { success: false, error: e.toString() };
   }finally{
     lock.releaseLock();
+  }
+}
+
+function removeTransactionsRowIfAccountIDIsEmpty(){
+  const sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+  const accountIdValue = sheet.getRange(2,11).getValue();
+  if(accountIdValue && accountIdValue === ''){
+    sheet.deleteRow(2);
   }
 }
