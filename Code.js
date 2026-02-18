@@ -424,19 +424,6 @@ function verifySubscriptionStatus(){
   }
 }
 
-function checkUserSubscription(){
-  const response = validateUserSession();
-  if( response.success === true ){
-    if( response.result && response.result.data.isSubscribed === true ){
-      return getTemplateBlockUI('SubscriptionActivated');
-    }else{
-      return getTemplateBlockUI('SubscriptionTimeOut');
-    }
-  }else{
-    return getTemplateBlockUI('SubscriptionTimeOut');
-  }
-}
-
 function installTemplateInitialSetup(){
   try{
     const response = getAppSettings();
