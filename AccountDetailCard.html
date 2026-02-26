@@ -60,18 +60,4 @@
     <? } ?>
     <button data-account-id="<?= account?.account_id ?>" class="btn-remove cursor-pointer flex-1 py-2 px-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium transition">Remove from ThefinU</button>
   </div>
-  <script>
-    document.querySelectorAll('.btn-rename').forEach(function(btn) {
-      btn.addEventListener('click', function() { renameAccount(this.dataset.accountId, this.dataset.accountName); });
-    });
-    document.querySelectorAll('.btn-unlink').forEach(function(btn) {
-      btn.addEventListener('click', function() { unlinkAccountFromTemplate(this.dataset.accountId, this); });
-    });
-    document.querySelectorAll('.btn-link').forEach(function(btn) {
-      btn.addEventListener('click', function() { linkAccountToTemplate(this.dataset.accountId, this); });
-    });
-    document.querySelectorAll('.btn-remove').forEach(function(btn) {
-      btn.addEventListener('click', function() { removeAccount(this.dataset.accountId); });
-    });
-  </script>
 </div>

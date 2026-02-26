@@ -55,6 +55,9 @@ function loadConnectedAccounts() {
   google.script.run.withSuccessHandler(response => {
     if( response !== false ){
       accountListElement.innerHTML = response;
+      accountListElement.querySelectorAll('.btn-view-detail').forEach(function(btn) {
+        btn.addEventListener('click', function() { viewAccountDetail(this.dataset.accountId); });
+      });
       accountListElement.classList.remove('hidden');
       loaderElement.classList.add('hidden');
     }else{
@@ -98,6 +101,18 @@ function viewAccountDetail(account_id) {
   accountDetailElement.textContent = '';
   google.script.run.withSuccessHandler(response => {
     accountDetailElement.innerHTML = response;
+    accountDetailElement.querySelectorAll('.btn-rename').forEach(function(btn) {
+      btn.addEventListener('click', function() { renameAccount(this.dataset.accountId, this.dataset.accountName); });
+    });
+    accountDetailElement.querySelectorAll('.btn-unlink').forEach(function(btn) {
+      btn.addEventListener('click', function() { unlinkAccountFromTemplate(this.dataset.accountId, this); });
+    });
+    accountDetailElement.querySelectorAll('.btn-link').forEach(function(btn) {
+      btn.addEventListener('click', function() { linkAccountToTemplate(this.dataset.accountId, this); });
+    });
+    accountDetailElement.querySelectorAll('.btn-remove').forEach(function(btn) {
+      btn.addEventListener('click', function() { removeAccount(this.dataset.accountId); });
+    });
     accountDetailElement.classList.remove('hidden');
     loaderElement.classList.add('hidden');
   }).withFailureHandler(err => {
@@ -134,6 +149,10 @@ function renameAccount( account_id, account_name ){
   renameAccountElement.textContent = '';
   google.script.run.withSuccessHandler(response => {
     renameAccountElement.innerHTML = response;
+    var cancelBtn = renameAccountElement.querySelector('#btnCancelRename');
+    if (cancelBtn) cancelBtn.addEventListener('click', function() { cancelRename(); });
+    var saveBtn = renameAccountElement.querySelector('#btnSaveRename');
+    if (saveBtn) saveBtn.addEventListener('click', function() { saveRename(this.dataset.accountId, this); });
     renameAccountElement.classList.remove('hidden');
     loaderElement.classList.add('hidden');
   }).withFailureHandler(err => {
