@@ -75,7 +75,6 @@ function clearBalanceHistoryData(account_id){
   for (let i = 0; i < data.length; i++) {
     if (data[i][columnIndexToCheck - 1] === account_id) {
       rowsToClear.push(i + 1); // Adjust for 1-based indexing
-      //sheet.getRange( i+1, 1, 1, sheet.getLastColumn()).clearContent(); 
     }
   }
 
@@ -93,7 +92,6 @@ function updateAccountBalanceHistory( account_id ){
 
     var collectionArr = [];
     const response = getPlaidAccountBalance(account_id);
-    //Logger.log( JSON.stringify(response, null, 2) );
     let accounts = response.accounts;
     accounts.forEach( function(account){
       let balances = account.balances;
@@ -145,11 +143,6 @@ function updateAccountBalanceHistory( account_id ){
           }
           rowValues.push(value);
         }
-        /*while( sheet.getRange(row, 7).getValue() === "" ){
-          sheet.getRange(row, 1, 1, 7).setValues([rowValues]);
-          row++;
-          break;
-        }*/
         let lastrow = sheet.getLastRow() + 1;
         for( var row = 1; row < lastrow; row++ ){
           if( sheet.getRange(lastrow, sheet.getLastColumn()).getValue() === '' ){

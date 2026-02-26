@@ -43,7 +43,7 @@ Each module reads/writes to a specific sheet:
 - **setupWizardJs.html / userAppJs.html / commonJs.html** — Client-side JavaScript (included via `<?!= include() ?>`)
 
 ### Key Patterns
-- **Global variables**: `UserEmail`, `UserSpreadsheet`, `UserSpreadsheetUrl`, `UserSpreadsheetId` are lazily initialized at the top of Code.js with try/catch for trigger safety
+- **Global variables**: `UserEmail`, `UserSpreadsheet` are lazily initialized at the top of Code.js with try/catch for trigger safety
 - **Sheet name constants**: `USER_TRANSACTIONS_SHEET`, `USER_BALANCE_HISTORY_SHEET`, etc. defined at top of Code.js
 - **Template rendering**: Server-side functions return HTML strings via `HtmlService.createTemplateFromFile().evaluate().getContent()`, injected into sidebar via `innerHTML`
 - **GAS templating**: `<?= ?>` for HTML-escaped output, `<?!= ?>` for raw output. Use `<?= ?>` for user-controlled data; use data attributes + JS event listeners instead of inline `onclick` with dynamic values

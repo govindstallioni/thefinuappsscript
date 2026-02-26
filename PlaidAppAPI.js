@@ -26,7 +26,6 @@ async function generatePlaidTokenLink( access_token = null ) {
 
     response = plaidRequest(plaidEndpoint, payload);
   }
-  //Logger.log( JSON.stringify(response, null, 2) );
   return response;
 }
 
@@ -68,7 +67,6 @@ function exchangePublicTokenForAccessToken(public_token, metadata) {
     };
 
     updatePlaidAccountIDOnSheets( metadata.institution.institution_id, metadata.accounts );
-    //Logger.log( JSON.stringify(dataToSend, null, 2) );
     // Send to YOUR backend
     storePlaidAPIAccounts(dataToSend);
     // For demo: we can return something useful to UI

@@ -342,23 +342,7 @@ function getJointTransactionData(config, categoryRatioMap) {
 			const assignedAmt = parseAmount( row[COL_TRAN.ASSIGNED_AMT] ) || 0;
 			const totalAmt = Math.abs(rawAmt); // Absolute value of the transaction amount
 
-			// --- NEW LOGIC: Household/Joint split by Category Ratios ---
-			/*if (owner === 'Household' || owner === 'Joint') {
-				const ratios = categoryRatioMap[cat];
-				if (ratios) {
-					// Calculate split based on category ratios using the main AMOUNT, as requested.
-					// Note: Ratios are normalized (sum to 1) from getJointCategoryData.
-					amtP1 = totalAmt * ratios.ratio1;
-					amtP2 = totalAmt * ratios.ratio2;
-				} else {
-					// Fallback if category ratios aren't found for Household/Joint (e.g., category missing from Definitions)
-					// Use existing 50/50 split logic for safety.
-					amtP1 = totalAmt / 2;
-					amtP2 = totalAmt / 2;
-				}
-			}*/
-
-			// --- EXISTING LOGIC: Individual Owner uses Assigned Amount ---
+			// --- Individual Owner uses Assigned Amount ---
 			if (owner === name1) {
 				// Owner is Name1: Name1 takes the Assigned Amount
 				amtP1 = Math.abs(assignedAmt); 

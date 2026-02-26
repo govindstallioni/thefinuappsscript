@@ -18,7 +18,7 @@ function showSetupWizard() {
     refreshSetupProgressUI();
   }).withFailureHandler(function(error){
     loaderEle.classList.add('hidden');
-    mainAppEle.innerHTML = response;
+    mainAppEle.textContent = error.message || 'Failed to load setup wizard';
   }).showSetupWizardTemplate();
 }
 
@@ -122,21 +122,6 @@ function pollForSubscription(btnEle, interval = 5000, timeout = paymentProcessin
   }, interval);
 }
 
-/*function checkSubscriptionStatus(btnEle) {
-  // kept for compatibility: trigger an immediate verify now
-  google.script.run.withSuccessHandler(function(response){
-    if (response && response.success === true && response.subscribed === true){
-      nextStep(3);
-    }else{
-      const appNotification = document.querySelector('#subscription-status') || document.querySelector('#app-notification');
-      if (appNotification){
-        appNotification.innerHTML = '';
-        appNotification.innerHTML = '<div class="text-yellow-600">Subscription not active yet.</div>';
-        appNotification.classList.remove('hidden');
-      }
-    }
-  }).verifySubscriptionStatus();
-}*/
 
 function startSubscribeCountdown(btn) {
   // clear any existing interval first
@@ -172,20 +157,6 @@ function updateButtonText(btn) {
   textEl.innerText = `Waiting (${min}:${sec.toString().padStart(2, '0')})`;
 }
 
-/*function updateSetupProgressUI(progressObj){
-  try{
-    if (!progressObj) return;
-    if (progressObj.subscription && progressObj.subscription.status === 'active'){
-      const el = document.getElementById('progress-step-subscription'); if (el){ el.classList.add('progress-complete'); }
-    }
-    if (progressObj.template && progressObj.template.status === 'completed'){
-      const el = document.getElementById('progress-step-template'); if (el){ el.classList.add('progress-complete'); }
-    }
-    if (progressObj.config && progressObj.config.status === 'completed'){
-      const el = document.getElementById('progress-step-config'); if (el){ el.classList.add('progress-complete'); }
-    }
-  }catch(e){ console.warn('updateSetupProgressUI', e); }
-}*/
 
 function refreshSetupProgressUI(){
   // fetch current progress from server and update UI

@@ -2,15 +2,9 @@ const API_ENDPOINT = 'https://thefinu.stallioni.com/';
 
 var UserEmail = '';
 var UserSpreadsheet = null;
-var UserSpreadsheetUrl = '';
-var UserSpreadsheetId = '';
 try {
   UserEmail = Session.getActiveUser().getEmail();
   UserSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-  if (UserSpreadsheet) {
-    UserSpreadsheetUrl = UserSpreadsheet.getUrl();
-    UserSpreadsheetId = UserSpreadsheet.getId();
-  }
 } catch(e) {
   // Fails silently in trigger/non-interactive contexts
 }
@@ -47,8 +41,6 @@ const RESTAPI_CONFIG = {
   TIMEOUT: 30000 // 30 seconds
 };
 
-const WEBAPP_WEBHOOK = RESTAPI_CONFIG.API_BASE_URL +'plaidwebhook';
-
 /**
  * Creates the menu when the spreadsheet opens.
  */
@@ -56,7 +48,6 @@ function onOpen(e) {
   SpreadsheetApp.getUi()
     .createAddonMenu()
     .addItem('Open', 'showSidebar')
-    //.addItem('Generate Reports', 'startGenerationOfReports')
     .addToUi();
 }
 
@@ -118,22 +109,29 @@ function appBaseTemplates(){
     USER_NET_WORTH_SHEET,
     USER_JOINT_NET_WORTH_SHEET,
     USER_RECONCILE_SHEET,
+    USER_MONTHLY_BUDGET_SHEET,
+    USER_JOINT_MONTHLY_BUDGET_SHEET,
+    USER_YEARLY_BUDGET_SHEET,
+    USER_JOINT_YEARLY_BUDGET_SHEET,
     USER_DEFINITION_SHEET,
-    //USER_MONTHLY_BUDGET_SHEET,
-    //USER_JOINT_MONTHLY_BUDGET_SHEET,
-    //USER_YEARLY_BUDGET_SHEET,
-    //USER_JOINT_YEARLY_BUDGET_SHEET,
-    //USER_BUDGET_MAKER_SHEET,
+    USER_BUDGET_MAKER_SHEET,
   ];
 }
 
-function appFeaturedTemplates(){
+function appBudgetFormulaTemplates(){
   return [
     USER_MONTHLY_BUDGET_SHEET,
     USER_JOINT_MONTHLY_BUDGET_SHEET,
     USER_YEARLY_BUDGET_SHEET,
     USER_JOINT_YEARLY_BUDGET_SHEET,
     USER_BUDGET_MAKER_SHEET
+  ];
+}
+
+function appBaseFormulaTemplates(){
+  return [
+    USER_TRANSACTIONS_SHEET,
+    USER_DEFINITION_SHEET
   ];
 }
 
@@ -414,8 +412,6 @@ function verifySubscriptionStatus(){
     }else{
       return { success: true, subscribed: false, data: response.result ? response.result.data : null };
     }
-    //try{ clearSubscriptionProgress(); }catch(e){}
-    
   }catch(e){
     Logger.log('verifySubscriptionStatus error: ' + e.toString());
     return { success: false, subscribed: false, error: e.toString() };
@@ -438,10 +434,13 @@ function installTemplateInitialSetup(){
         if (!userSpreadsheet.getSheetByName(sheetName) ) {
           let copiedSheet = sourceSheet.copyTo(userSpreadsheet);
           copiedSheet.setName(sheetName);
-          reApplyFormulaToSpreadsheet(sheetName);
         }
       });
 
+      let formulaSheets = appBudgetFormulaTemplates();
+      formulaSheets.forEach(function(sheetName){
+        reApplyFormulaToSpreadsheet(sheetName);
+      });
       // Active Start Here sheet
       SpreadsheetApp.getActive().getSheetByName(USER_START_HERE_SHEET).activate();
       SpreadsheetApp.flush();
@@ -578,7 +577,6 @@ function getAccountDetailsTemplate( accountId ){
   const response = getAppPlaidAccountById(accountId);
   if( response.success === true ){
     const template = HtmlService.createTemplateFromFile('AccountDetailCard');
-    //Logger.log( JSON.stringify(response.result, null, 2) );
     template.account = response.result;
     return template.evaluate().getContent();
   }else{
@@ -648,6 +646,8 @@ function updateAccountName(accountId, newName) {
     changeAccountNameOnBalanceHistorySheet(accountId, newName);
     changeAccountNameOnTransactionSheet(accountId, newName);
     changeAccountNameOnInvestmentSheet(accountId, newName);
+    populateNetWorth();
+    populateJointNetWorth();
     if( response.success === true ){
       return {
         success: true,
@@ -731,131 +731,6 @@ function confirmLinkAccountToTemplateConfirmed(accountId){
 }
 
 /**
- * Starts the remote upload and scheduling process for linking account data.
- */
-function startLinkingProcess(accountId){
-  const userProperties = PropertiesService.getUserProperties();
-  // avoid duplicate starts
-  if( userProperties.getProperty('TASK_STATUS') === 'PROCESSING' ){
-    return true;
-  }
-
-  try{
-    // Gather transactions (added/modified)
-    var addedTransactions = [];
-    var modifiedTransactions = [];
-    var has_more = false;
-    var next_cursor = '';
-    let transactions = getPlaidTransactionSyncData( accountId, next_cursor );
-    if( transactions && transactions.request_id != '' ){
-      has_more = transactions.has_more;
-      next_cursor = transactions.next_cursor;
-      addedTransactions.push(transactions.added || []);
-      modifiedTransactions.push(transactions.modified || []);
-      while( has_more === true ){
-        let next_transactions = getPlaidTransactionSyncData( accountId, next_cursor);
-        addedTransactions.push(next_transactions.added || []);
-        modifiedTransactions.push(next_transactions.modified || []);
-        next_cursor = next_transactions.next_cursor;
-        has_more = next_transactions.has_more;
-      }
-    }
-    var flatAdded = addedTransactions.reduce(function(acc, chunk){ return acc.concat(chunk || []); }, []);
-    var flatModified = modifiedTransactions.reduce(function(acc, chunk){ return acc.concat(chunk || []); }, []);
-
-    // Gather investments
-    var investments = [];
-    var invRaw = getPlaidInvestmentsData(accountId);
-    if(invRaw != null){
-      investments = formatPlaidInvestments(accountId, invRaw) || [];
-    }
-
-    var payload = {
-      account_id: accountId,
-      next_cursor: next_cursor || '',
-      added: flatAdded,
-      modified: flatModified,
-      investments: investments
-    };
-
-    // Process payload locally (no external upload/fetch)
-    try{
-
-      userProperties.setProperty('TASK_STATUS','PROCESSING');
-      userProperties.setProperty('LINK_ACCOUNT_ID', accountId);
-
-      // Combine added and modified transactions for insertion
-      var allTransactions = (payload.added || []).concat(payload.modified || []);
-      removeTransactionsRowIfAccountIDIsEmpty();
-      if( Array.isArray(allTransactions) && allTransactions.length > 0 ){
-        var txRows = [];
-        let account_response = getAppPlaidAccountById( accountId );
-        let account_data = account_response.result;
-        allTransactions.forEach(function(transaction){
-          let transaction_status = transaction.pending == true ? 'Pending' : '';
-          txRows.push([
-            '', // Not Cleared
-            transaction.date || '',
-            transaction.name || '',
-            '',
-            transaction.amount || 0,
-            '',
-            '',
-            account_data ? account_data.name : '',
-            transaction_status,
-            account_data ? account_data.mask : '',
-            transaction.account_id || accountId,
-            account_data ? account_data.institution_name : '',
-            transaction.transaction_id || '',
-            '',
-            '',
-            ''
-          ]);
-        });
-        batchInsertRows('transactions', txRows);
-        sortingTransactionSheet();
-      }
-
-      if( Array.isArray(payload.investments) && payload.investments.length > 0 ){
-        var invRows = [];
-        payload.investments.forEach(function(inv){
-          invRows.push([
-            '',
-            inv.account_name || inv.name || '',
-            inv.cusip || '',
-            inv.ticker || inv.ticker_symbol || '',
-            inv.price_as_of || '',
-            inv.price || 0,
-            inv.quantity || 0,
-            inv.cost_basis || 0,
-            inv.value || 0,
-            inv.account || '',
-            inv.security_id || '',
-            inv.account_id || accountId
-          ]);
-        });
-        batchInsertRows('investments', invRows);
-        sortingInvestmentSheet();
-      }
-
-      userProperties.setProperty('TASK_STATUS','COMPLETED');
-      userProperties.deleteProperty('LINK_ACCOUNT_ID');
-      userProperties.deleteProperty('LINK_PROCESS_TIMESTAMP');
-      return true;
-    }catch(e){
-      userProperties.setProperty('TASK_STATUS','ERROR: ' + e.toString());
-      Logger.log('startLinkingProcess insertion error: ' + e.toString());
-      return false;
-    }
-
-  }catch(e){
-    Logger.log('startLinkingProcess error: ' + e.toString());
-    SpreadsheetApp.getUi().alert('Something went wrong.');
-    return false;
-  }
-}
-
-/**
  * Finalize linking for an account after data insertion completed by client.
  * Performs template install, balance updates, sheet linking, formulas and net worth population.
  */
@@ -866,7 +741,6 @@ function finalizeLink(accountId){
   try{
     if(!accountId) return { success: false, message: 'Missing accountId' };
 
-    installFeaturedTemplates();
     updateAccountBalanceHistory(accountId);
     linkAccountsSheetData(accountId);
     updateAppAccountDetailById(accountId, {
@@ -876,7 +750,15 @@ function finalizeLink(accountId){
       linked_date: getTodayDateTime()
     });
 
-    reApplyFormulaToSpreadsheet();
+    let sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+    
+    if( sheet && sheet.getRange("B2").getValue() !== '' ){
+      let formulasheets = appBaseFormulaTemplates();
+      formulasheets.forEach(function(sheetName){
+        reApplyFormulaToSpreadsheet(sheetName);
+      });
+    }
+
     populateNetWorth();
     populateJointNetWorth();
     SpreadsheetApp.flush();
@@ -889,6 +771,56 @@ function finalizeLink(accountId){
     props.setProperty('TASK_STATUS','ERROR: ' + e.toString());
     return { success: false, error: e.toString() };
   }finally{
+    lock.releaseLock();
+  }
+}
+
+function processUnlinkAccountTask() {
+  const lock = LockService.getUserLock();
+  lock.waitLock(30000);
+
+  const props = PropertiesService.getUserProperties();
+  const accountId = props.getProperty('UNLINK_ACCOUNT_ID');
+
+  if (!accountId) return;
+
+  try {
+
+    // --- DATA CLEANUP ---
+    clearTransactionsData(accountId);
+    clearInvestmentsData(accountId);
+    clearBalanceHistoryData(accountId);
+    clearAccountData(accountId);
+    updateAppAccountDetailById(accountId, {
+      is_linked: false,
+      status: true,
+      updates: false,
+      linked_date: getTodayDateTime()
+    });
+
+    populateNetWorth();
+    populateJointNetWorth();
+
+    let definitionSheet = UserSpreadsheet.getSheetByName(USER_DEFINITION_SHEET);
+    let transactionSheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+    if( definitionSheet && definitionSheet.getRange("I3").getValue() <= 1 ){  
+      definitionSheet.getRange("R2").setValue('2024'); // reset to default year
+      definitionSheet.getRange("S2").setValue('1/1/2024'); // clear monthly period list
+      definitionSheet.getRange("V1").setValue('2024'); // reset total income
+      definitionSheet.getRange("X1").setValue('2024'); // reset total joint income
+      transactionSheet.getRange("P1").setValue('Period');
+      transactionSheet.getRange("O1").setValue('Type');
+      transactionSheet.getRange("N1").setValue('Group');
+    }
+
+    SpreadsheetApp.flush();
+    props.setProperty('TASK_STATUS', 'COMPLETED');
+    props.deleteProperty('UNLINK_ACCOUNT_ID');
+    return { success: true };
+  } catch (e) {
+    props.setProperty('TASK_STATUS', 'ERROR: ' + e.message);
+    return { success: false, error: e.toString() };
+  } finally {
     lock.releaseLock();
   }
 }
@@ -959,10 +891,6 @@ function reApplyFormulaToSpreadsheet(item){
         spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC4").setFormula("='Monthly Budget'!C2"); // Set the formula
         spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD2").setFormula("='Joint Yearly Budget'!D2"); // Set the formula
         spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD4").setFormula("='Joint Monthly Budget'!C2"); // Set the formula
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC10").setFormula(`=IFNA(INDEX('Monthly Budget'!E:E,MATCH("Income",'Monthly Budget'!B:B,0)),0)`);
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC11").setFormula(`=IFNA(INDEX('Monthly Budget'!E:E,MATCH("Expense",'Monthly Budget'!B:B,0)),0)`); // Set the formula
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD10").setFormula(`=IFNA(INDEX('Joint Monthly Budget'!F:F,MATCH("Income",'Joint Monthly Budget'!B:B,0)+2),0)`); // Set the formula
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD11").setFormula(`=IFNA(INDEX('Joint Monthly Budget'!F:F,MATCH("Expense",'Joint Monthly Budget'!B:B,0)+2),0)`); // Set the formula
       }
     break;
     case USER_BUDGET_MAKER_SHEET:
@@ -999,6 +927,7 @@ function reApplyFormulaToSpreadsheet(item){
         // Set the default value to the first valid value
         cell.setValue(periodValues[0]);
         spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET).getRange("E4").setFormula('=Definition!AC24'); // Set the formula
+        spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET).getRange("B5").setFormula('=Definition!AC5'); 
       }
     break;
     case USER_JOINT_MONTHLY_BUDGET_SHEET:
@@ -1093,36 +1022,6 @@ function reApplyFormulaToSpreadsheet(item){
   }
 }
 
-
-function installFeaturedTemplates(){
-
-  let transactionSheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
-  if( transactionSheet ){
-    removeTransactionsRowIfAccountIDIsEmpty();
-    if( transactionSheet.getLastRow() > 2 ){
-      const response = getAppSettings();
-      if( response.success === true ){
-        const spreadsheetTemplateUrl = response.result.spreadsheetTemplateUrl;
-        let sourceSpreadsheet = SpreadsheetApp.openByUrl(spreadsheetTemplateUrl);
-        const userSpreadsheet = UserSpreadsheet;
-        let requiredSheets = appFeaturedTemplates();
-        let sourceSheets = sourceSpreadsheet.getSheets();
-        const requiredSet = new Set(requiredSheets.map(name => name.toLowerCase()));
-        sourceSheets.forEach(function(sourceSheet) {
-          let sheetName = sourceSheet.getName();
-          if (!requiredSet.has(sheetName.toLowerCase())) return;
-          if (!userSpreadsheet.getSheetByName(sheetName) ) {
-            let copiedSheet = sourceSheet.copyTo(userSpreadsheet);
-            copiedSheet.setName(sheetName);
-            reApplyFormulaToSpreadsheet(sheetName);
-          }
-        });
-        reApplyFormulaToSpreadsheet(USER_DEFINITION_SHEET);
-      }
-    }
-  }
-}
-
 function hideSheetByName( sheetName ){
   const sheet = UserSpreadsheet.getSheetByName(sheetName);
   if(sheet){
@@ -1191,19 +1090,6 @@ function updatePlaidAccountIDOnSheets( institution_id, accounts ){
         });
       });
     }
-  }
-}
-
-function confirmReportGenerationAlertMessage(message){
-  // Show alert message with yes or no options
-  var result = SpreadsheetApp.getUi().alert(
-    'Generate Reports?',
-    message || 'Generating reports will refresh all data and may take a few minutes to complete. Do you want to proceed?',
-    SpreadsheetApp.getUi().ButtonSet.YES_NO
-  );
-  if (result == SpreadsheetApp.getUi().Button.YES) {
-    SpreadsheetApp.getUi().alert('Report generation has started. Do not change anything until the process completes.');
-    startReportGenerationTask();
   }
 }
 

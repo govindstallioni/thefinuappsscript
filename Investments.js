@@ -25,10 +25,8 @@ function linkInvestmentsSheetData( investmentsData ){
 }
 
 function linkInvestmentSheet( account_id ){
-  //let account_id = getUserCurrentAccountId();
   var format_data = [];
   let invsetments = getPlaidInvestmentsData( account_id );
-  //Logger.log( JSON.stringify(invsetments, null, 2) );
   if( invsetments != null ){
     format_data = formatPlaidInvestments( account_id, invsetments);
   }
@@ -141,10 +139,8 @@ function clearInvestmentsData(account_id){
 function changeAccountNameOnInvestmentSheet( account_id, account_name ){
   let sheet = UserSpreadsheet.getSheetByName(USER_INVESTMENTS_SHEET);
   var data = sheet.getDataRange().getValues();
-  //Logger.log(data);
   for (var row = 0; row < data.length; row++) {
     if (data[row].includes(account_id)) {
-      //Logger.log(row);
       sheet.getRange(row + 1 , 10).setValue(account_name); 
     }
   }
