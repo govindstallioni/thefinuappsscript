@@ -274,14 +274,23 @@ function getTemplateBlockUI(file){
 
 /**
  * Setup wizard progress helpers
- * Stored in User Properties under key: SETUP_WIZARD_PROGRESS
+ * Stored in User Properties under key: SETUP_WIZARD_PROGRESS_{spreadsheetId}
  */
+function getSetupProgressKey_(){
+  try{
+    var id = SpreadsheetApp.getActiveSpreadsheet().getId();
+    return 'SETUP_WIZARD_PROGRESS_' + id;
+  }catch(e){
+    return 'SETUP_WIZARD_PROGRESS';
+  }
+}
+
 function getSetupWizardProgress(){
   try{
     const userProps = PropertiesService.getUserProperties();
-    const raw = userProps.getProperty('SETUP_WIZARD_PROGRESS');
-    if( raw ){ 
-      Logger.log( JSON.stringify(raw, null, 2) );
+    const key = getSetupProgressKey_();
+    const raw = userProps.getProperty(key);
+    if( raw ){
       return JSON.parse(raw);
     }
   }catch(e){
@@ -299,8 +308,9 @@ function getSetupWizardProgress(){
 function setSetupWizardProgress(progressObj){
   try{
     const userProps = PropertiesService.getUserProperties();
+    const key = getSetupProgressKey_();
     progressObj.updatedAt = new Date().toISOString();
-    userProps.setProperty('SETUP_WIZARD_PROGRESS', JSON.stringify(progressObj));
+    userProps.setProperty(key, JSON.stringify(progressObj));
     return true;
   }catch(e){
     Logger.log('setSetupWizardProgress error: ' + e.toString());
@@ -379,8 +389,13 @@ function isSetupCompleted(){
       if (result == ui.Button.YES) {
         let response = confirmCancelUserSubscription();
         if( response.success === true ){
+          // Remove all triggers
+          ScriptApp.getProjectTriggers().forEach(function(trigger) {
+            ScriptApp.deleteTrigger(trigger);
+          });
           deleteAllSheetsAndRecreate();
           clearAllUserProperties();
+          clearAppSettingsCache();
           return true;
         }
         return false;
