@@ -12,6 +12,7 @@
   "urlFetchWhitelist": [
     "https://script.googleapis.com/",
     "https://production.plaid.com/",
+    "https://sandbox.plaid.com/",
     "https://thefinu.stallioni.com/",
     "https://api.stripe.com/v1/checkout/sessions"
   ],

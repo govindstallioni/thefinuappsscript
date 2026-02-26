@@ -44,7 +44,6 @@ function getAppUserId() {
 // Configuration
 const RESTAPI_CONFIG = {
   API_BASE_URL: API_ENDPOINT,
-  SCRIPT_ID: 'AKfycbyqPA2eaEAgwNGdVyOAbIeq3_h74nGaujmk80lomXVrErl-948LuTWr9F3rRxPEUX_mhA',
   TIMEOUT: 30000 // 30 seconds
 };
 
