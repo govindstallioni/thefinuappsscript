@@ -30,17 +30,22 @@ function buttonEventEnd(btnEle, text){
   btnSpinner.classList.add('hidden');
 }
 
+function escapeHtml(str){
+  if (typeof str !== 'string') return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
 function actionSuccessMessage( text ){
   return `<div class="flex p-2 bg-green-100 border border-green-500 gap-2 text-xs">
       ${successIcon}
-      <span class="text-green-600">${ text }</span>
+      <span class="text-green-600">${ escapeHtml(text) }</span>
     </div>`;
 }
 
 function actionFailureMessage( text ){
   return `<div class="flex p-2 bg-red-100 border border-red-500 gap-2 text-xs">
       ${errorIcon}
-      <span class="text-red-600">${ text }</span>
+      <span class="text-red-600">${ escapeHtml(text) }</span>
     </div>`;
 }
 
@@ -55,10 +60,11 @@ function showMessage(msg, type, duration){
     try{ alert(msg); }catch(e){}
     return;
   }
+  // actionSuccessMessage/actionFailureMessage already escape text via escapeHtml
   container.innerHTML = type === 'error' ? actionFailureMessage(msg) : actionSuccessMessage(msg);
   container.classList.remove('hidden');
   if(type !== 'error'){
-    setTimeout(function(){ container.classList.add('hidden'); container.innerHTML = ''; }, duration || 5000);
+    setTimeout(function(){ container.classList.add('hidden'); container.textContent = ''; }, duration || 5000);
   }
 }
 </script>

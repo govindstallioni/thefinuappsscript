@@ -1,69 +1,3 @@
-function linkTransactionSheet( account_id ){
-  var addedTransactions = [];
-  var modifiedTransactions = [];
-  var has_more = false;
-  var next_cursor = '';
-  //fetch transactions first 500 data from plaid
-  let transactions = getPlaidTransactionSyncData( account_id, next_cursor );
-  //check has_more and fetch next 500 transactions data by next_cursor from plaid and format the them.
-  if( transactions.request_id != '' ){
-    has_more = transactions.has_more;
-    next_cursor = transactions.next_cursor;
-    addedTransactions.push(transactions.added);
-    modifiedTransactions.push(transactions.modified);
-    while( has_more === true ){
-      let next_transactions = getPlaidTransactionSyncData( account_id, next_cursor);
-      addedTransactions.push(next_transactions.added);
-      modifiedTransactions.push(next_transactions.modified);
-      next_cursor = next_transactions.next_cursor;
-      has_more = next_transactions.has_more;
-    }
-    if( has_more == false ){
-      updateAppAccountDetailById(account_id,{next_cursor: next_cursor});
-    }
-
-    let account_response = getAppPlaidAccountById( account_id );
-    let account_data = account_response.result;
-  
-    linkPlaidAddedTransactions(addedTransactions, account_data );
-    linkPlaidModifiedTransactions(modifiedTransactions, account_data);
-    sortingTransactionSheet();
-  }
-}
-
-function getPlaidTransactionAccount( account_id ){
-
-
-  var response = getAppPlaidAccountById(account_id);
-
-  var collection = null;
-
-  if( response.success === true ){
-    let account = response.result;
-    var account_name    = '';
-    var account_number  = '';
-    let accounts        = account.accounts;
-    let item            = response.item;
-    let institution_id  = item.institution_id;
-    let institution     = item.institution_name;
-
-    accounts.forEach( function( account ){
-      account_number  = account.mask;
-      account_name    = account.name;
-    });
-    
-    collection = {
-      'account_number': account_number,
-      'account_name'  : account_name,
-      'institution_id': institution_id,
-      'institution'   : institution
-    };
-  }
-  
-  return collection;
-}
-
-
 function linkPlaidAddedTransactions( transactions, account ){
   
   var collection = [];
@@ -164,10 +98,12 @@ function removeTransactionItem( transaction_id ){
   }
 }
 
-function getTransactionRow( transaction_id ){
-
-  const sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
-  var data = sheet.getDataRange().getValues();
+function getTransactionRow( transaction_id, cachedData ){
+  var data = cachedData;
+  if (!data) {
+    const sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+    data = sheet.getDataRange().getValues();
+  }
 
   // Loop through rows to find the value
   for (var row = 0; row < data.length; row++) {
@@ -177,6 +113,23 @@ function getTransactionRow( transaction_id ){
   }
 
   return null;
+}
+
+/**
+ * Builds a transaction ID -> row number lookup map from sheet data.
+ * Transaction ID is in column 13 (index 12).
+ */
+function buildTransactionRowMap() {
+  const sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+  const data = sheet.getDataRange().getValues();
+  const map = {};
+  for (var row = 1; row < data.length; row++) {
+    var txId = data[row][12]; // Transaction ID column (index 12)
+    if (txId && txId !== '') {
+      map[txId] = row + 1; // 1-based row number
+    }
+  }
+  return { data: data, map: map };
 }
 
 function clearTransactionsData( account_id ){
@@ -252,7 +205,7 @@ function updateTransactionSheet(account_id){
     
         var newTransactionCollection = [];
         var accountNumber = result.mask;
-        var accountName = getAccountNameByAccountId(account.account_id);
+        var accountName = getPlaidAccountNameByAccountId(account.account_id);
         var institutionName = result.institution_name;
 
         if( TransactionAdded.length > 0 ){

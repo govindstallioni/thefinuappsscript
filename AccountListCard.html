@@ -22,19 +22,24 @@
       </div>
       <? if(account.is_linked){ ?>
         <div class="border-t border-gray-400 text-center py-2 px-2 theme-bg-primary text-white">
-          <button class="cursor-pointer"
-                  onclick="viewAccountDetail('<?= account.account_id ?>')">
+          <button class="cursor-pointer btn-view-detail"
+                  data-account-id="<?= account.account_id ?>">
             Make Changes →
           </button>
         </div>
       <? } else { ?>
         <div class="border-t border-gray-400 text-center py-2 px-2 theme-bg-primary text-white">
-          <button class="cursor-pointer"
-                  onclick="viewAccountDetail('<?= account.account_id ?>')">
+          <button class="cursor-pointer btn-view-detail"
+                  data-account-id="<?= account.account_id ?>">
             Bring in Data →
           </button>
         </div>
       <? } ?>
     </div>
   <? }); ?>
+  <script>
+    document.querySelectorAll('.btn-view-detail').forEach(function(btn) {
+      btn.addEventListener('click', function() { viewAccountDetail(this.dataset.accountId); });
+    });
+  </script>
 <? } ?>

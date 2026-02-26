@@ -52,12 +52,26 @@
 
   <!-- Action Buttons -->
   <div class="px-5 py-5 bg-gray-50 border-t border-gray-400 flex flex-col sm:flex-row gap-1">
-    <button onclick="renameAccount('<?= account?.account_id ?>', '<?= account?.name ?>')" class="cursor-pointer flex-1 py-2 px-2 bg-white border border-gray-300 text-gray-800 rounded-lg font-medium transition">Rename Account</button>
+    <button data-account-id="<?= account?.account_id ?>" data-account-name="<?= account?.name ?>" class="btn-rename cursor-pointer flex-1 py-2 px-2 bg-white border border-gray-300 text-gray-800 rounded-lg font-medium transition">Rename Account</button>
     <? if( account.is_linked === true ){ ?>
-      <button onclick="unlinkAccountFromTemplate('<?= account?.account_id ?>', this)" class="cursor-pointer flex-1 py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Unlink from Spreadsheet</button>
+      <button data-account-id="<?= account?.account_id ?>" class="btn-unlink cursor-pointer flex-1 py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Unlink from Spreadsheet</button>
     <? } else { ?>
-      <button onclick="linkAccountToTemplate('<?= account?.account_id ?>', this)" class="cursor-pointer flex-1 py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Link to Template</button>
+      <button data-account-id="<?= account?.account_id ?>" class="btn-link cursor-pointer flex-1 py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Link to Template</button>
     <? } ?>
-    <button onclick="removeAccount('<?= account?.account_id ?>')" class="cursor-pointer flex-1 py-2 px-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium transition">Remove from ThefinU</button>
+    <button data-account-id="<?= account?.account_id ?>" class="btn-remove cursor-pointer flex-1 py-2 px-2 bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 font-medium transition">Remove from ThefinU</button>
   </div>
+  <script>
+    document.querySelectorAll('.btn-rename').forEach(function(btn) {
+      btn.addEventListener('click', function() { renameAccount(this.dataset.accountId, this.dataset.accountName); });
+    });
+    document.querySelectorAll('.btn-unlink').forEach(function(btn) {
+      btn.addEventListener('click', function() { unlinkAccountFromTemplate(this.dataset.accountId, this); });
+    });
+    document.querySelectorAll('.btn-link').forEach(function(btn) {
+      btn.addEventListener('click', function() { linkAccountToTemplate(this.dataset.accountId, this); });
+    });
+    document.querySelectorAll('.btn-remove').forEach(function(btn) {
+      btn.addEventListener('click', function() { removeAccount(this.dataset.accountId); });
+    });
+  </script>
 </div>

@@ -59,7 +59,7 @@ function formatPlaidInvestments(account_id, investments){
     for ( var j = 0; j < PlaidAccountsSecurities.length; j++ ){
       let securities = PlaidAccountsSecurities[j] || {};
       if( holding && holding.security_id && securities && holding.security_id === securities.security_id ){
-        account_name = getAccountNameByAccountId(account_id) || '';
+        account_name = getPlaidAccountNameByAccountId(account_id) || '';
         collectionArr.push({
           'security_id': holding.security_id || '',
           'account_id' : holding.account_id || '',

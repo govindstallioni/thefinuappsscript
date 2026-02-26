@@ -10,7 +10,7 @@ async function generatePlaidTokenLink( access_token = null ) {
     let payload = {
       client_id: appSettingsData.result.plaidClientKey,
       secret: appSettingsData.result.plaidSecretKey,
-      user: APP_USER_ID,
+      user: getAppUserId(),
       client_name: 'ThefinU, LLC',
       products: ['transactions'], // The Plaid products you want to access
       optional_products: ['investments'],
@@ -86,71 +86,6 @@ function exchangePublicTokenForAccessToken(public_token, metadata) {
   }
 }
 
-/**
- * Optional: Get accounts & institution info
- */
-/*function getAccountsAndInstitution(access_token) {
-
-  try{
-
-    const appSettingsData = getAppSettings();
-
-    if( appSettingsData.success === true ){
-
-      const plaidAccountEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/accounts/get';
-      const plaidInstitutionEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/institutions/get_by_id';
-
-      // Get accounts
-      const accRes = UrlFetchApp.fetch(plaidAccountEndpoint, {
-        method: "post",
-        contentType: "application/json",
-        payload: JSON.stringify({
-          client_id: appSettingsData.result.plaidClientKey,
-          secret: appSettingsData.result.plaidSecretKey,
-          access_token: access_token
-        })
-      });
-
-      const accJson = JSON.parse(accRes.getContentText());
-
-      // Get institution
-      let instName = "Unknown";
-      if (accJson.item?.institution_id) {
-        const instRes = UrlFetchApp.fetch(plaidInstitutionEndpoint, {
-          method: "post",
-          contentType: "application/json",
-          payload: JSON.stringify({
-            client_id: appSettingsData.result.plaidClientKey,
-            secret: appSettingsData.result.plaidSecretKey,
-            institution_id: accJson.item.institution_id,
-            //country_codes: PLAID_COUNTRY_CODES
-          })
-        });
-        const instJson = JSON.parse(instRes.getContentText());
-        instName = instJson.institution?.name || "Unknown";
-      }
-
-      return {
-        accounts: accJson.accounts || [],
-        institution: {
-          id: accJson.item?.institution_id,
-          name: instName
-        }
-      };
-    }else{
-      return {
-        success: false,
-        data: []
-      };
-    }
-  }catch(error){
-    return {
-      success: false,
-      error: error.toString()
-    };
-  }
-}*/
-
 function getPlaidTransactionSyncData( account_id, new_cursor = null ){
 
   let response = [];
@@ -221,7 +156,7 @@ function getPlaidInvestmentsData( account_id ){
 }
 
 function getPlaidItem(access_token){
-  let response = [];
+  let result = [];
   const appSettingsData = getAppSettings();
   if( appSettingsData.success === true ){
     const plaidItemEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/item/get';
@@ -233,7 +168,7 @@ function getPlaidItem(access_token){
     let response = plaidRequest(plaidItemEndpoint, payload);
     return response.item;
   }
-  return response;
+  return result;
 }
 
 
@@ -245,55 +180,24 @@ function plaidRequest(url, payload) {
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     });
-    return JSON.parse(res.getContentText());
-  } catch (e) {
-    const body = JSON.parse(e.message.match(/\{.*\}/)?.[0] || '{}');
-    const {error_type, error_code, error_message} = body;
-    switch (error_type) {
-      case 'ITEM_ERROR':
-        handlePlaidItemError(error_code, error_message);
-        break;
-      case 'RATE_LIMIT_EXCEEDED':
-        handleRateLimitError(error_code, error_message);
-        break;
-      case 'API_ERROR':
-        handlePlaidAPIError(error_code, error_message);
-        break;
-      case 'INVALID_REQUEST':
-      case 'INVALID_INPUT':
-        handlePlaidInvalidError(error_code, error_message);
-        break;
-      case 'INSTITUTION_ERROR':
-        handlePlaidInstitutionError(error_code, error_message);
-        break;
-      default:
-        handlePlaidUnknownError(error_code, error_message);
-        break;
+    const json = JSON.parse(res.getContentText());
+    if (res.getResponseCode() !== 200) {
+      Logger.log('Plaid API error: ' + JSON.stringify(json));
+      handlePlaidError(json.error_type, json.error_code, json.error_message);
+      return { error: true, error_type: json.error_type, error_code: json.error_code, error_message: json.error_message };
     }
+    return json;
+  } catch (e) {
+    Logger.log('plaidRequest exception: ' + e.toString());
+    return { error: true, error_message: e.toString() };
   }
 }
 
-function handlePlaidItemError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
-}
-
-function handleRateLimitError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
-
-}
-
-function handlePlaidAPIError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
-}
-
-function handlePlaidInvalidError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
-}
-
-function handlePlaidInstitutionError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
-}
-
-function handlePlaidUnknownError( error_code, error_message ){
-  SpreadsheetApp.getUi().alert(error_message);
+function handlePlaidError(error_type, error_code, error_message) {
+  Logger.log('Plaid ' + (error_type || 'UNKNOWN') + ' [' + (error_code || '') + ']: ' + (error_message || ''));
+  try {
+    SpreadsheetApp.getUi().alert(error_message || 'A Plaid API error occurred.');
+  } catch (e) {
+    // UI not available in trigger context
+  }
 }

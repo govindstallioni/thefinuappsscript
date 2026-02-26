@@ -92,7 +92,11 @@ function pollForSubscription(btnEle, interval = 5000, timeout = paymentProcessin
 
         const appNotification = document.querySelector('#subscription-status') || document.querySelector('#app-notification');
         if (appNotification){
-          appNotification.innerHTML = '<div class="text-red-600 mb-3">Subscription not detected yet. Please try again or contact support.</div>';
+          appNotification.textContent = '';
+          var div = document.createElement('div');
+          div.className = 'text-red-600 mb-3';
+          div.textContent = 'Subscription not detected yet. Please try again or contact support.';
+          appNotification.appendChild(div);
           appNotification.classList.remove('hidden');
         }
 
@@ -107,7 +111,11 @@ function pollForSubscription(btnEle, interval = 5000, timeout = paymentProcessin
       if (btnEle) { buttonEventEnd(btnEle, "Try Again"); btnEle.dataset.disabled = 'false'; }
       const appNotification = document.querySelector('#subscription-status') || document.querySelector('#app-notification');
       if (appNotification){
-        appNotification.innerHTML = '<div class="text-red-600">Error checking subscription. Please try again.</div>';
+        appNotification.textContent = '';
+        var div = document.createElement('div');
+        div.className = 'text-red-600';
+        div.textContent = 'Error checking subscription. Please try again.';
+        appNotification.appendChild(div);
         appNotification.classList.remove('hidden');
       }
     }).verifySubscriptionStatus();
@@ -227,7 +235,7 @@ function applyProgressToSteps(progress){
 function nextStep(n){
   // mark that the user has manually navigated so auto UI refresh won't override
   userNavigated = true;
-  appNotificationEle.innerHTML = '';
+  appNotificationEle.textContent = '';
   document.querySelectorAll('#setup-wizard > div').forEach(div => div.classList.add('hidden'));
   document.getElementById('step-' + n).classList.remove('hidden');
 }
@@ -241,7 +249,7 @@ function handleStepInstallTemplate(btnEle){
   const stepEl = btnEle.closest('[id^="step-"]');
   buttonEventStart(btnEle, "Installing");
   google.script.run.withSuccessHandler(function(response){
-    if( response.status === true ){
+    if( response.success === true ){
       btnEle.classList.add('hidden');
       showStepBlockMessageElement({
         stepEle: stepEl, 
@@ -274,7 +282,7 @@ function handleStepSaveConfiguration(btnEle){
   const isAutoSyncEnabled = autoSyncCheckbox.checked;
   buttonEventStart(btnEle, "Saving..");
   google.script.run.withSuccessHandler((response) => {
-    if( response.status === true ){
+    if( response.success === true ){
       btnEle.classList.add('hidden');
       showStepBlockMessageElement({
         stepEle: stepEl, 

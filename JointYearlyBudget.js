@@ -277,10 +277,7 @@ function buildRows(name, b1, a1, b2, a2, type) {
   }
   return [r1, r2, r3, r4];
 }
-function colToLet(c) {
-  let l = '';
-  while (c > 0) { let t = (c - 1) % 26; l = String.fromCharCode(t + 65) + l; c = (c - t - 1) / 26; }
-  return l;
-}
+// Use columnToLetter() from YearlyBudget.js (shared globally in GAS)
+var colToLet = columnToLetter;
 function safeSum(arr) { return arr.reduce((a, b) => a + b, 0); }
 function safeDiv(n, d) { return d === 0 ? (n === 0 ? 0 : 1) : n / d; }

@@ -1,9 +1,19 @@
 const API_ENDPOINT = 'https://thefinu.stallioni.com/';
 
-const UserEmail = Session.getActiveUser().getEmail();
-const UserSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
-const UserSpreadsheetUrl = UserSpreadsheet.getUrl();
-const UserSpreadsheetId = UserSpreadsheet.getId();
+var UserEmail = '';
+var UserSpreadsheet = null;
+var UserSpreadsheetUrl = '';
+var UserSpreadsheetId = '';
+try {
+  UserEmail = Session.getActiveUser().getEmail();
+  UserSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  if (UserSpreadsheet) {
+    UserSpreadsheetUrl = UserSpreadsheet.getUrl();
+    UserSpreadsheetId = UserSpreadsheet.getId();
+  }
+} catch(e) {
+  // Fails silently in trigger/non-interactive contexts
+}
 
 const USER_START_HERE_SHEET = 'Start Here';
 const USER_DATA_SHEET = 'Data';
@@ -23,9 +33,13 @@ const USER_YEARLY_BUDGET_SHEET = 'Yearly Budget';
 const USER_JOINT_YEARLY_BUDGET_SHEET = 'Joint Yearly Budget';
 const USER_BUDGET_MAKER_SHEET = 'Budget Maker';
 
-var APP_USER_ID = {
-  client_user_id: generateRandomNumber(),
-};
+var _appUserId = null;
+function getAppUserId() {
+  if (!_appUserId) {
+    _appUserId = { client_user_id: generateRandomNumber() };
+  }
+  return _appUserId;
+}
 
 // Configuration
 const RESTAPI_CONFIG = {
@@ -52,10 +66,6 @@ function onOpen(e) {
  */
 function onInstall(e) {
   onOpen(e);
-}
-
-function onChange(e){
-  Logger.log(JSON.stringify(e, null, 2));
 }
 
 function handleAddonEdit(e){
@@ -187,48 +197,37 @@ function getDateTime() {
 }
 
 function createStripeSession(){
-
   try{
+    const email = Session.getActiveUser().getEmail();
+    const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
 
-    const PRICE_ID = 'price_1SnHxFBKorklj30OWLWvqJcP';
+    const apiUrl = API_ENDPOINT + 'api/payment/create-checkout-session';
 
-    const response = getAppSettings();
+    const options = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: getAuthHeaders(),
+      payload: JSON.stringify({
+        email: email,
+        spreadsheetId: spreadsheetId
+      }),
+      muteHttpExceptions: true
+    };
 
-    if( response.success === true ){
-      
-      const stripeKey = response.result.stripeSecretKey;
-      const email = Session.getActiveUser().getEmail();
-      const spreadsheetId = SpreadsheetApp.getActiveSpreadsheet().getId();
+    const request = UrlFetchApp.fetch(apiUrl, options);
+    const json = JSON.parse(request.getContentText());
 
-      let url = 'https://api.stripe.com/v1/checkout/sessions';
-
-      var payload =
-        'mode=subscription' +
-        '&customer_email='+ email + 
-        '&success_url=' + encodeURIComponent(API_ENDPOINT+'success?session_id={CHECKOUT_SESSION_ID}&spreadsheet_id='+spreadsheetId) +
-        '&cancel_url=' + encodeURIComponent(API_ENDPOINT+'cancel?spreadsheet_id='+spreadsheetId) +
-        '&line_items[0][price]=' + PRICE_ID +
-        '&line_items[0][quantity]=1';
-
-      var options = {
-        method: 'post',
-        contentType: 'application/x-www-form-urlencoded',
-        payload: payload,
-        headers: {
-          Authorization: 'Bearer ' + stripeKey
-        },
-        muteHttpExceptions: true
-      };
-      
-      var request = UrlFetchApp.fetch(url, options);
-      const json = JSON.parse(request.getContentText());
-
+    if (request.getResponseCode() === 200 && json.url) {
       return {
         success: true,
         checkoutUrl: json.url
       };
     }
-   
+
+    return {
+      success: false,
+      error: json.error || 'Failed to create checkout session'
+    };
   }catch(e){
     return {
       success: false,
@@ -451,13 +450,13 @@ function installTemplateInitialSetup(){
     // mark template step completed
     try{ markSetupStepCompleted('template', { status: 'completed', installedAt: new Date().toISOString() }); }catch(e){}
     return {
-      status: true,
+      success: true,
       message: "Template(s) installed successfully"
     }
   }catch(error){
     Logger.log(`Error while installTemplateInitialSetup: ${error.message}`);
     return {
-      status: false,
+      success: false,
       message: "Something went wrong, please try again."
     }
   }
@@ -496,13 +495,13 @@ function saveConfiguration(data){
     // mark config step completed
     try{ markSetupStepCompleted('config', { status: 'completed', autoSync: data.autoSync, savedAt: new Date().toISOString() }); }catch(e){}
     return {
-      status: true,
+      success: true,
       message: "Saved Successfully"
     }
   }catch(error){
     Logger.log(`Error while saveConfiguration: ${error.message}`);
     return {
-      status: false,
+      success: false,
       message: "Something went wrong, please try again."
     }
   }
@@ -551,13 +550,13 @@ function toggleAutoSyncSetting( status ){
       PropertiesService.getUserProperties().setProperty("AUTO_SYNC_STATUS", false);
     }
     return {
-      status: true,
+      success: true,
       message: "Auto-Sync status updated successfully."
     }
   }catch(error){
     Logger.log(`Error while toggleAutoSyncSetting: ${error.message}`);
     return {
-      status: false,
+      success: false,
       message: "Something went wrong, please try again."
     }
   }
@@ -635,100 +634,12 @@ function runThefinUPlaidAutoSync(){
   }
 }
 
-function handleOnEdit(e){
-  //if (!e || !e.range) return;
-  const range = e.range;
-  const sheet = range.getSheet();
-  const column = range.getColumn();
-  const row = range.getRow();
-  const newValue = e.value;
-  const oldValue = e.oldValue;
-  const editCell = range.getA1Notation();
-  // Get row data
-  const rowData = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
-
-  const defSheet = UserSpreadsheet.getSheetByName(USER_DEFINITION_SHEET);
-
-  Logger.log( "sheet: "+ sheet.getName() + ' cell: '+ editCell +'range: '+ range);
-  if( sheet.getName() === USER_BALANCE_HISTORY_SHEET ){
-    let dateCol = 2;
-    let accountsCol = 3;
-    let accountNumberCol = 4;
-    let balanceCol = 5;
-    let balanceIDCol = 6;
-    let accountIDCol = 7;
-    let dateTimeCol = 8;
-    
-    if( column === balanceCol ){
-      let accountId = rowData[accountIDCol -1];
-      // check if accountId is not empty & newValue is a number 
-      if( accountId && accountId !== '' && !isNaN(newValue) ){
-        let accountData = checkAccountBalanceByAccountId( accountId );
-        if( accountData !== null ){
-          let accountBalance = parseFloat( accountData[4] ) || 0;
-          let newBalance = parseFloat( newValue ) || 0;
-          if( accountBalance === newBalance ){
-            let message = 'Generating reports will refresh all data and may take a few minutes to complete. Do you want to proceed?';
-            confirmReportGenerationAlertMessage( message );
-          }
-        }
-      }
-    }
-  }else if( sheet.getName() === USER_ACCOUNTS_SHEET ){
-    let ownCol = defSheet.getRange('F11').getValue();
-    let groupCol = defSheet.getRange('F6').getValue();
-    let assetliabilityCol = defSheet.getRange('F7').getValue();
-    let hideCol = defSheet.getRange('F8').getValue();
-    // check if edited column is one of the above and only trigger report generation if all values are present
-
-    if (column === ownCol || column === groupCol || column === assetliabilityCol || column === hideCol ) {
-      if( rowData[ownCol -1] === '' || rowData[groupCol -1] === '' || rowData[assetliabilityCol -1] === ''){
-        return;
-      }
-      let message = 'Generating reports will refresh all data and may take a few minutes to complete. Do you want to proceed?';
-      confirmReportGenerationAlertMessage( message );
-    }
-  }else if( sheet.getName() === USER_TRANSACTIONS_SHEET ){
-    let catCol = defSheet.getRange('I5').getValue();
-    let ownCol = defSheet.getRange('I11').getValue();
-    let amtCol = defSheet.getRange('I10').getValue();
-    if (column === catCol || column === ownCol || column === amtCol ) {
-      let message = 'Generating reports will refresh all data and may take a few minutes to complete. Do you want to proceed?';
-      confirmReportGenerationAlertMessage( message );
-    }
-  }else if( sheet.getName() === USER_MONTHLY_BUDGET_SHEET ){
-    if( editCell === 'C2' ){
-      startGenerationOfMonthlyBudget();
-    }
-  }else if( sheet.getName() === USER_YEARLY_BUDGET_SHEET ){
-    if( editCell === 'E2' ){
-      startGenerationOfYearlyBudget();
-    }
-  }else if( sheet.getName() === USER_JOINT_MONTHLY_BUDGET_SHEET ){
-    if( editCell === 'C2' ){
-      startGenerationOfJointMonthlyBudget();
-    }
-  }else if( sheet.getName() === USER_JOINT_YEARLY_BUDGET_SHEET ){
-    if( editCell === 'D2' ){
-      startGenerationOfJointYearlyBudget();
-    }
-  }else if( sheet.getName() === USER_CATEGORIES_SHEET ){
-  }else{
-    return;
-  }
-}
-
 /**
  * Backend functions called from the UI
  */
 function linkNewAccount() {
   const html = HtmlService.createHtmlOutputFromFile('ConnectPlaidAccount').setWidth(450).setHeight(600);
   SpreadsheetApp.getUi().showModalDialog(html, "Connect Plaid Account");
-}
-
-function importTransactions(accountId) {
-  Logger.log("Importing for: " + accountId);
-  return "Transactions imported.";
 }
 
 function updateAccountName(accountId, newName) {
@@ -740,19 +651,19 @@ function updateAccountName(accountId, newName) {
     changeAccountNameOnInvestmentSheet(accountId, newName);
     if( response.success === true ){
       return {
-        status: true,
+        success: true,
         message: 'Account name updated'
       };
     }else{
       return {
-        status: false,
+        success: false,
         message: 'Something went wrong, please try again.'
       };
     }
   }catch(error){
     Logger.log(`Error while updateAccountName: ${error.message}`);
     return {
-      status: false,
+      success: false,
       message: "Something went wrong, please try again."
     }
   }
@@ -769,24 +680,22 @@ function removeAccountFromList(accountId) {
       const response = updateAppAccountDetailById(accountId,{status: false});
       if( response.success === true ){
         return {
-          status: true,
-          message: 'Account name updated'
+          success: true,
+          message: 'Account removed'
         };
       }else{
         return {
-          status: false,
+          success: false,
           message: 'Something went wrong, please try again.'
         };
       }
     }
   }catch(error){
-    Logger.log(`Error while updateAccountName: ${error.message}`);
+    Logger.log(`Error while removeAccountFromList: ${error.message}`);
     return {
-      status: false,
+      success: false,
       message: "Something went wrong, please try again."
     }
-  }finally {
-    SpreadsheetApp.getUi().alert('Account removed successfully.');
   }
 }
 
@@ -1031,18 +940,6 @@ function confirmUnlinkAccountFromTemplateConfirmed(accountId){
   }
 }
 
-/**
- * Helper: Finds and deletes triggers by function name
- */
-function deleteTriggerByFunction(functionName) {
-  const triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i++) {
-    if (triggers[i].getHandlerFunction() === functionName) {
-      ScriptApp.deleteTrigger(triggers[i]);
-    }
-  }
-}
-
 function reApplyFormulaToSpreadsheet(item){
   const spreadsheet = UserSpreadsheet;
   switch(item){
@@ -1052,6 +949,7 @@ function reApplyFormulaToSpreadsheet(item){
         spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET).getRange("O1").setFormula('=ARRAYFORMULA({"Type";iferror(vlookup(INDIRECT("d2:d"&Definition!I3),Indirect(Definition!P2),Definition!C7,0),"Expense")})');
         spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET).getRange("N1").setFormula('=ARRAYFORMULA({"Group";iferror(vlookup(INDIRECT("d2:d"&Definition!I3),Indirect(Definition!P2),Definition!C6,0),"NotGrouped")})');
       }
+      break;
     case USER_DEFINITION_SHEET:
       if (spreadsheet.getSheetByName(USER_DEFINITION_SHEET)) {
         spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2").setFormula('=ARRAYFORMULA(UNIQUE(YEAR(INDIRECT(P9))))'); // Set the formula
@@ -1310,17 +1208,6 @@ function confirmReportGenerationAlertMessage(message){
   }
 }
 
-function checkAccountBalanceByAccountId(accountId){
-  const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
-  const data = sheet.getDataRange().getValues();
-  for (let row = 1; row < data.length; row++) {
-    if( data[row].includes(accountId) ){
-      return JSON.parse( JSON.stringify( data[row] ) );
-    }
-  }
-  return null;
-}
-
 function getAccountDataByAccountId(accountId){
   const sheet = UserSpreadsheet.getSheetByName(USER_ACCOUNTS_SHEET);
   const data = sheet.getDataRange().getValues();
@@ -1383,7 +1270,7 @@ function submitBalanceHistoryFormData(formData){
   catch(error){
     Logger.log(`Error while submitBalanceHistoryFormData: ${error.message}`);
     return {
-      status: false,
+      success: false,
       message: "Something went wrong, please try again."
     }
   }
@@ -1409,27 +1296,19 @@ function addManualAccountBalanceHistoryData( data ){
       accountName = data.accountName;
       accountId = generateUniqueId();
     }
-    sheet.getRange(lastrow, 2).setValue(data.balanceDate).setFontSize(9)
-        .setFontFamily("Comfortaa")
-        .setFontColor("#000000")
-        .setFontWeight("bold"); // Date
-    sheet.getRange(lastrow, 3).setValue(accountName).setFontSize(9)
-        .setFontFamily("Comfortaa")
-        .setFontColor("#000000")
-        .setFontWeight("bold"); // Account Name
-    sheet.getRange(lastrow, 4).setValue(accountNumber).setFontSize(9)
-        .setFontFamily("Comfortaa")
-        .setFontColor("#000000")
-        .setFontWeight("bold"); // Account Number
-    sheet.getRange(lastrow, 5).setValue(data.accountBalance).setFontSize(9)
-        .setFontFamily("Comfortaa")
-        .setFontColor("#000000")
-        .setFontWeight("bold"); // Balance
-    sheet.getRange(lastrow, 7).setValue(accountId).setFontSize(9)
-        .setFontFamily("Comfortaa")
-        .setFontColor("#000000")
-        .setFontWeight("bold"); // Account ID
-    sheet.getRange(lastrow, 8).setValue(getTodayDateTime()).setFontSize(9)
+    var rowValues = [
+      '',                     // col 1 (empty)
+      data.balanceDate,       // col 2 - Date
+      accountName,            // col 3 - Account Name
+      accountNumber,          // col 4 - Account Number
+      data.accountBalance,    // col 5 - Balance
+      '',                     // col 6 (empty)
+      accountId,              // col 7 - Account ID
+      getTodayDateTime()      // col 8 - Date & Time
+    ];
+    var cell = sheet.getRange(lastrow, 1, 1, rowValues.length);
+    cell.setValues([rowValues])
+        .setFontSize(9)
         .setFontFamily("Comfortaa")
         .setFontColor("#000000")
         .setFontWeight("bold");
@@ -1448,13 +1327,13 @@ function addManualAccountBalanceHistoryData( data ){
     populateNetWorth();
     populateJointNetWorth();
     return {
-      status: true,
+      success: true,
       message: "Balance history added successfully."
     }
   }catch(error){
     Logger.log(`Error while addManualAccountBalanceHistoryData: ${error.message}`);
     return {
-      status: false,
+      success: false,
       message: "Something went wrong, please try again."
     }
   }
@@ -1501,20 +1380,6 @@ function clearAllUserProperties() {
   }
 }
 
-function getAccountNameByAccountId(account_id){
-  try{
-    const response = getAppPlaidAccountById(account_id);
-    //Logger.log( JSON.stringify(response, null, 2) );
-    if( response.success === true ){
-      return response.result.name;
-    }else{
-      return null;
-    }
-  }catch(error){
-    Logger.log(`Error while installTemplateInitialSetup: ${error.message}`);
-    return null;
-  }
-}
 
 function deleteAllSheetsAndRecreate() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();

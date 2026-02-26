@@ -1,4 +1,15 @@
 /**
+ * Builds authenticated headers for backend API requests.
+ * The backend should validate the OAuth token via Google's tokeninfo endpoint.
+ */
+function getAuthHeaders() {
+  return {
+    'Authorization': 'Bearer ' + ScriptApp.getOAuthToken(),
+    'X-User-Email': UserEmail || Session.getActiveUser().getEmail()
+  };
+}
+
+/**
  * Retrieves user data and validates it against your external API.
  * Called from the sidebar when it loads.
  */
@@ -25,6 +36,7 @@ function validateUserSession() {
     const options = {
       method: 'post',
       contentType: 'application/json',
+      headers: getAuthHeaders(),
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     };
@@ -54,22 +66,27 @@ function validateUserSession() {
   }
 }
 
+var _cachedAppSettings = null;
+
 function getAppSettings() {
+  if (_cachedAppSettings) return _cachedAppSettings;
   try {
     const apiUrl = API_ENDPOINT + 'api/settings';
 
     const options = {
       method: 'get',
+      headers: getAuthHeaders(),
       muteHttpExceptions: true
     };
 
     const response = UrlFetchApp.fetch(apiUrl, options);
     const result = JSON.parse(response.getContentText());
-  
-    return {
+
+    _cachedAppSettings = {
       success: response.getResponseCode() === 200,
       result
     };
+    return _cachedAppSettings;
 
   } catch (e) {
     return {
@@ -77,6 +94,10 @@ function getAppSettings() {
       error: e.toString()
     };
   }
+}
+
+function clearAppSettingsCache() {
+  _cachedAppSettings = null;
 }
 
 function storePlaidAPIAccounts( data ){
@@ -95,13 +116,13 @@ function storePlaidAPIAccounts( data ){
     const options = {
       method: 'post',
       contentType: 'application/json',
+      headers: getAuthHeaders(),
       payload: JSON.stringify(data),
       muteHttpExceptions: true
     };
 
     const response = UrlFetchApp.fetch(apiUrl, options);
     const result = JSON.parse(response.getContentText());
-    //Logger.log(result);
     return {
       success: response.getResponseCode() === 200,
       result
@@ -120,6 +141,7 @@ function getAppPlaidConnectedAccounts() {
 
     const options = {
       method: 'get',
+      headers: getAuthHeaders(),
       muteHttpExceptions: true
     };
 
@@ -146,6 +168,7 @@ function getAppPlaidAccountById( accountId ){
 
     const options = {
       method: 'get',
+      headers: getAuthHeaders(),
       muteHttpExceptions: true
     };
 
@@ -174,6 +197,7 @@ function updateAppAccountDetailById( accountId, data ){
     const options = {
       method: 'patch',
       contentType: 'application/json',
+      headers: getAuthHeaders(),
       payload: JSON.stringify(data),
       muteHttpExceptions: true
     };
@@ -210,6 +234,7 @@ function confirmCancelUserSubscription(){
     const options = {
       method: 'post',
       contentType: 'application/json',
+      headers: getAuthHeaders(),
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
     };

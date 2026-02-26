@@ -47,10 +47,10 @@ function loadConnectedAccounts() {
   accountDetailElement.classList.add('hidden');
   renameAccountElement.classList.add('hidden');
   balanceHistoryElement.classList.add('hidden');
-  accountListElement.innerHTML = '';
-  accountDetailElement.innerHTML = '';
-  renameAccountElement.innerHTML = '';
-  balanceHistoryElement.innerHTML = '';
+  accountListElement.textContent = '';
+  accountDetailElement.textContent = '';
+  renameAccountElement.textContent = '';
+  balanceHistoryElement.textContent = '';
 
   google.script.run.withSuccessHandler(response => {
     if( response !== false ){
@@ -58,15 +58,25 @@ function loadConnectedAccounts() {
       accountListElement.classList.remove('hidden');
       loaderElement.classList.add('hidden');
     }else{
-      accountListElement.innerHTML = '<p class="text-gray-600 py-8 text-center">Something went wrong, Please try again later.</p>';
+      accountListElement.textContent = '';
+      var p = document.createElement('p');
+      p.className = 'text-gray-600 py-8 text-center';
+      p.textContent = 'Something went wrong, Please try again later.';
+      accountListElement.appendChild(p);
       accountListElement.classList.remove('hidden');
       loaderElement.classList.add('hidden');
     }
   }).withFailureHandler(err => {
-      accountListElement.innerHTML = `
-      <p class="text-red-600 py-8">Something wrong, Please try again.<br>
-        <span class="text-sm">(${err.message || 'Network error'})</span>
-      </p>`;
+      accountListElement.textContent = '';
+      var p = document.createElement('p');
+      p.className = 'text-red-600 py-8';
+      p.textContent = 'Something wrong, Please try again. ';
+      var span = document.createElement('span');
+      span.className = 'text-sm';
+      span.textContent = '(' + (err.message || 'Network error') + ')';
+      p.appendChild(document.createElement('br'));
+      p.appendChild(span);
+      accountListElement.appendChild(p);
       accountListElement.classList.remove('hidden');
       loaderElement.classList.add('hidden');
   }).getConnectedPlaidAccountsTemplate();   // ← your server function
@@ -85,16 +95,22 @@ function viewAccountDetail(account_id) {
   renameAccountElement.classList.add('hidden');
   balanceHistoryElement.classList.add('hidden');
   accountDetailElement.classList.add('hidden');
-  accountDetailElement.innerHTML = '';
+  accountDetailElement.textContent = '';
   google.script.run.withSuccessHandler(response => {
     accountDetailElement.innerHTML = response;
     accountDetailElement.classList.remove('hidden');
     loaderElement.classList.add('hidden');
   }).withFailureHandler(err => {
-      accountDetailElement.innerHTML = `
-      <p class="text-red-600 py-8">Something wrong, Please try again.<br>
-        <span class="text-sm">(${err.message || 'Network error'})</span>
-      </p>`;
+      accountDetailElement.textContent = '';
+      var p = document.createElement('p');
+      p.className = 'text-red-600 py-8';
+      p.textContent = 'Something wrong, Please try again. ';
+      var span = document.createElement('span');
+      span.className = 'text-sm';
+      span.textContent = '(' + (err.message || 'Network error') + ')';
+      p.appendChild(document.createElement('br'));
+      p.appendChild(span);
+      accountDetailElement.appendChild(p);
       accountDetailElement.classList.remove('hidden');
       loaderElement.classList.add('hidden');
   }).getAccountDetailsTemplate(account_id);   // ← your server function
@@ -115,16 +131,22 @@ function renameAccount( account_id, account_name ){
   accountListElement.classList.add('hidden');
   balanceHistoryElement.classList.add('hidden');
   renameAccountElement.classList.add('hidden');
-  renameAccountElement.innerHTML = '';
+  renameAccountElement.textContent = '';
   google.script.run.withSuccessHandler(response => {
     renameAccountElement.innerHTML = response;
     renameAccountElement.classList.remove('hidden');
     loaderElement.classList.add('hidden');
   }).withFailureHandler(err => {
-      renameAccountElement.innerHTML = `
-      <p class="text-red-600 py-8">Something wrong, Please try again.<br>
-        <span class="text-sm">(${err.message || 'Network error'})</span>
-      </p>`;
+      renameAccountElement.textContent = '';
+      var p = document.createElement('p');
+      p.className = 'text-red-600 py-8';
+      p.textContent = 'Something wrong, Please try again. ';
+      var span = document.createElement('span');
+      span.className = 'text-sm';
+      span.textContent = '(' + (err.message || 'Network error') + ')';
+      p.appendChild(document.createElement('br'));
+      p.appendChild(span);
+      renameAccountElement.appendChild(p);
       renameAccountElement.classList.remove('hidden');
       loaderElement.classList.add('hidden');
   }).getRenameAccountTemplate( account_id, account_name );
@@ -142,7 +164,7 @@ function cancelRename(){
   // Reset UI
   loaderElement.classList.remove('hidden');
   accountDetailElement.classList.remove('hidden');
-  renameAccountElement.innerHTML = '';
+  renameAccountElement.textContent = '';
   renameAccountElement.classList.add('hidden');
   loaderElement.classList.add('hidden');
 }
@@ -175,14 +197,14 @@ function saveRename( account_id, btnEle ){
   btnEle.textContent = "Saving...";
 
   google.script.run.withSuccessHandler((response) => {
-    if( response.status === true ){
+    if( response.success === true ){
       renameEle.querySelector('.responsemessage').innerHTML = actionSuccessMessage(response.message);
       renameEle.querySelector('.responsemessage').classList.remove("hidden");
       setTimeout(() => {
         viewAccountDetail(account_id);
         renameEle.querySelector('.responsemessage').classList.add("hidden");
-        renameEle.querySelector('.responsemessage').innerHTML = '';
-        renameEle.innerHTML = '';
+        renameEle.querySelector('.responsemessage').textContent = '';
+        renameEle.textContent = '';
         renameEle.classList.add("hidden");
       }, 2000);
     }else{
@@ -204,7 +226,7 @@ function linkNewAccount() {
 
 function removeAccount(account_id) {
   google.script.run.withSuccessHandler( function(response){
-    if( response.status === true ){
+    if( response.success === true ){
       loadConnectedAccounts();
     }
     }).withFailureHandler(err => {
@@ -266,7 +288,7 @@ function addNewBalanceHistory(btnEle){
   accountListElement.classList.add('hidden');
   accountDetailElement.classList.add('hidden');
   renameAccountElement.classList.add('hidden');
-  balanceHistoryElement.innerHTML = '';
+  balanceHistoryElement.textContent = '';
   google.script.run.withSuccessHandler(function(response){
     loaderEle.classList.add('hidden');
     balanceHistoryElement.innerHTML = response;
@@ -275,10 +297,16 @@ function addNewBalanceHistory(btnEle){
     accountDetailElement.classList.add('hidden');
     renameAccountElement.classList.add('hidden'); 
   }).withFailureHandler(function(error){
-    balanceHistoryElement.innerHTML = `
-    <p class="text-red-600 py-8">Something wrong, Please try again.<br>
-      <span class="text-sm">(${error.message || 'Network error'})</span>
-    </p>`;
+    balanceHistoryElement.textContent = '';
+    var p = document.createElement('p');
+    p.className = 'text-red-600 py-8';
+    p.textContent = 'Something wrong, Please try again. ';
+    var span = document.createElement('span');
+    span.className = 'text-sm';
+    span.textContent = '(' + (error.message || 'Network error') + ')';
+    p.appendChild(document.createElement('br'));
+    p.appendChild(span);
+    balanceHistoryElement.appendChild(p);
     balanceHistoryElement.classList.remove('hidden');
     loaderEle.classList.add('hidden');
   }).showAddBalanceHistoryFormTemplate();
@@ -323,7 +351,7 @@ function submitBalanceHistoryForm(event){
   let formData = new FormData(formEle);
   let data = {};
   let responseEle = formEle.querySelector('.responsemessage');
-  formEle.querySelector('.responsemessage').innerHTML = '';
+  responseEle.textContent = '';
   formData.forEach((value, key) => {
     data[key] = value;
   });
@@ -355,9 +383,9 @@ function submitBalanceHistoryForm(event){
   submitBtn.disabled = true;
   submitBtn.textContent = "Submitting...";
   responseEle.classList.remove("error", "text-red-600");
-  responseEle.innerHTML = '';
+  responseEle.textContent = '';
   google.script.run.withSuccessHandler(function(response){
-    if( response.status === true ){
+    if( response.success === true ){
       formEle.querySelector('.responsemessage').innerHTML = actionSuccessMessage(response.message);
       formEle.querySelector('.responsemessage').classList.remove("hidden");
       submitBtn.disabled = false;
