@@ -28,10 +28,15 @@ function populateJointYearlyBudget() {
   const monthColsRaw = defSheet.getRange('W2:W13').getValues().flat();
   const namesRaw = defSheet.getRange('C11:C12').getValues().flat();
   
-  const year = outSheet.getRange('D2').getValue();
+  // Read year from D2 dropdown
+  const yearDisplay = String(outSheet.getRange('D2').getDisplayValue()).replace(/[^0-9]/g, '');
+  const year = parseInt(yearDisplay, 10) || new Date().getFullYear();
 
-  outSheet.getRange('B3').setValue("⏳ Processing Actuals...");
-  
+  // Use spreadsheet timezone for date extraction to avoid timezone mismatch
+  const tz = ss.getSpreadsheetTimeZone();
+
+  outSheet.getRange('B3').setValue("⏳ Processing..");
+
   const NAME1 = String(namesRaw[0] || "").trim();
   const NAME2 = String(namesRaw[1] || "").trim();
 
@@ -41,7 +46,7 @@ function populateJointYearlyBudget() {
     TYP_COL: configRaw[2] - 1,
     HIDE_COL: configRaw[3] - 1,
     ALLOC1: configRaw[4] - 1,
-    ALLOC2: configRaw[5] - 1, 
+    ALLOC2: configRaw[5] - 1,
     YEAR: year,
     NAME1: NAME1,
     NAME2: NAME2,
@@ -118,9 +123,13 @@ function populateJointYearlyBudget() {
     const row = tranData[i];
     const tDate = row[CONFIG.TRAN_DATE_COL];
     if (!tDate) continue;
-    
-    const dateObj = new Date(tDate);
-    if (isNaN(dateObj.getTime()) || dateObj.getFullYear() != CONFIG.YEAR) continue;
+
+    const dateObj = (tDate instanceof Date) ? tDate : new Date(tDate);
+    if (isNaN(dateObj.getTime())) continue;
+
+    // Extract year and month using spreadsheet timezone (avoids script timezone mismatch)
+    const txnYear = parseInt(Utilities.formatDate(dateObj, tz, 'yyyy'), 10);
+    if (txnYear !== CONFIG.YEAR) continue;
 
     const tCat = String(row[CONFIG.TRAN_CAT_COL] || "").trim();
     const tGrp = String(row[CONFIG.TRAN_GRP_COL] || "").trim();
@@ -128,14 +137,14 @@ function populateJointYearlyBudget() {
 
     const fullLookupKey = (tCat + "_" + tGrp + "_" + tTyp).toUpperCase();
     const catEntry = catMap[fullLookupKey] || nameOnlyMap[tCat.toUpperCase()];
-    
+
     if (catEntry) {
       let amt = toNum(row[CONFIG.TRAN_AMT_COL]);
       let assignAmt = toNum(row[CONFIG.TRAN_ASSIGN_AMT_COL]);
       if (tTyp !== 'Income' && tTyp !== 'Transfers') amt = Math.abs(amt);
 
       const ownerRaw = String(row[CONFIG.TRAN_OWNER_COL] || "").toLowerCase().trim();
-      const monthIdx = dateObj.getMonth();
+      const monthIdx = parseInt(Utilities.formatDate(dateObj, tz, 'M'), 10) - 1;
       const n1 = CONFIG.NAME1.toLowerCase();
       const n2 = CONFIG.NAME2.toLowerCase();
       

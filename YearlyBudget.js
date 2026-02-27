@@ -1,9 +1,10 @@
 /**
  * Optimized Yearly Budget Generator
- * Reviewed and Fixed:
- * - FIXED: Actual amounts now populate by using a robust numeric parser (removes $ and ,).
- * - FIXED: Data fetching logic improved with flexible key matching (handles missing Group/Type in Transactions).
- * - FIXED: Zero values explicitly forced to 0.00 to match the requested visual style.
+ * Transaction processing rewritten to match the proven MonthlyBudget pattern:
+ * - Reads column mappings directly from Definition I5:I12
+ * - Builds a visibleCategories set from Categories sheet
+ * - Creates a simple actualMap keyed by category name
+ * - Uses getDataRange() for all data reads
  */
 function populateYearlyBudget() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -19,26 +20,33 @@ function populateYearlyBudget() {
 
   // --- 1. CONFIGURATION & SETUP ---
   const configRaw = defSheet.getRange('C5:C12').getValues().flat();
-  const tranConfigRaw = defSheet.getRange('I5:I12').getValues().flat();
   const monthColsRaw = defSheet.getRange('W2:W13').getValues().flat();
-  
+
+  // Read year from E2 dropdown
+  const e2Cell = outSheet.getRange('E2');
+  const e2Display = String(e2Cell.getDisplayValue()).replace(/[^0-9]/g, '');
+  const e2Val = e2Cell.getValue();
+  let targetYear = parseInt(e2Display, 10);
+  if (!(targetYear >= 1900 && targetYear <= 2100)) {
+    targetYear = (e2Val instanceof Date) ? e2Val.getFullYear() : parseInt(String(e2Val), 10);
+  }
+  if (!(targetYear >= 1900 && targetYear <= 2100)) {
+    targetYear = new Date().getFullYear();
+  }
+
+  // Use spreadsheet timezone for date extraction to avoid timezone mismatch
+  const tz = ss.getSpreadsheetTimeZone();
+
   const CONFIG = {
     CAT_COL: configRaw[0] - 1,
     GRP_COL: configRaw[1] - 1,
-    TYP_COL: configRaw[2] - 1, 
+    TYP_COL: configRaw[2] - 1,
     HIDE_COL: configRaw[3] - 1,
-    YEAR: defSheet.getRange('V1').getValue(),
     BUDGET_COLS: monthColsRaw.map(c => c - 1),
-    
-    TRAN_CAT: tranConfigRaw[0] - 1,
-    TRAN_GRP: tranConfigRaw[1] - 1,
-    TRAN_TYP: tranConfigRaw[2] - 1, 
-    TRAN_DATE: tranConfigRaw[4] - 1,
-    TRAN_AMT: tranConfigRaw[5] - 1, 
   };
 
   outSheet.getRange('B3').setValue("⏳ Processing..");
-  const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00)_);_($* 0.00_);_(@_)'; 
+  const fmtCurrency = '_($* #,##0.00_);_($* (#,##0.00)_);_($* 0.00_);_(@_)';
 
   // Clear Output Sheet (Rows 10+)
   const lastRow = outSheet.getLastRow();
@@ -51,18 +59,19 @@ function populateYearlyBudget() {
 
   // --- 2. DATA PROCESSING ---
 
-  const tree = {}; 
-  const catMap = {}; 
-  const fallbackCatMap = {}; // Maps Category Name -> Data Object (if Group/Type missing in Trans)
+  const tree = {};
+  const visibleCategories = new Set();
 
-  // A. Process Categories
+  // A. Process Categories — build tree AND visibleCategories set (like MonthlyBudget)
   const catData = catSheet.getDataRange().getValues();
-  for (let i = 1; i < catData.length; i++) { 
+  for (let i = 1; i < catData.length; i++) {
     const row = catData[i];
     const type = String(row[CONFIG.TYP_COL] || "").trim();
     const group = String(row[CONFIG.GRP_COL] || "").trim();
     const catName = String(row[CONFIG.CAT_COL] || "").trim();
     if (row[CONFIG.HIDE_COL] === "Hide" || !type || !group || !catName) continue;
+
+    visibleCategories.add(catName);
 
     if (!tree[type]) tree[type] = {};
     if (!tree[type][group]) tree[type][group] = {};
@@ -76,56 +85,85 @@ function populateYearlyBudget() {
     for (let m = 0; m < 12; m++) {
       catObj.budget[m] = Number(row[CONFIG.BUDGET_COLS[m]]) || 0;
     }
-
-    const fullKey = `${catName}|${group}|${type}`.toUpperCase();
-    catMap[fullKey] = catObj;
-    fallbackCatMap[catName.toUpperCase()] = catObj;
     tree[type][group][catName] = catObj;
   }
 
-  // B. Process Transactions
+  // B. Process Transactions — EXACT same approach as working MonthlyBudget
+  //    Read column mappings DIRECTLY from Definition I5:I12
+  const tranConfigRaw = defSheet.getRange('I5:I12').getValues().flat();
+  const TRAN_COL = {
+    DATE: tranConfigRaw[4] - 1,      // I9: Date column (0-based)
+    CATEGORY: tranConfigRaw[0] - 1,  // I5: Category column (0-based)
+    AMOUNT: tranConfigRaw[5] - 1,    // I10: Amount column (0-based)
+  };
+
+  // Read ALL transaction data (same as MonthlyBudget)
   const tranData = tranSheet.getDataRange().getValues();
-  const targetYear = CONFIG.YEAR;
+
+  // Build a simple actualMap keyed by category name with per-month amounts
+  const actualMap = {};
+  let _totalRows = 0, _yearMatch = 0, _catMatch = 0;
 
   for (let i = 1; i < tranData.length; i++) {
     const row = tranData[i];
-    const dateVal = row[CONFIG.TRAN_DATE];
-    if (!dateVal || !(dateVal instanceof Date) && isNaN(Date.parse(dateVal))) continue;
-    
-    const date = new Date(dateVal);
-    if (date.getFullYear() != targetYear) continue;
+    const dateVal = row[TRAN_COL.DATE];
+    if (!dateVal) continue;
 
-    const tCat = String(row[CONFIG.TRAN_CAT] || "").trim().toUpperCase();
-    const tGrp = String(row[CONFIG.TRAN_GRP] || "").trim().toUpperCase();
-    const tTyp = String(row[CONFIG.TRAN_TYP] || "").trim().toUpperCase();
-    
-    // Robust Amount Parsing (Removes $ and ,)
-    let rawAmt = row[CONFIG.TRAN_AMT];
-    let amt = (typeof rawAmt === 'string') ? 
-              parseFloat(rawAmt.replace(/[$,]/g, '')) || 0 : 
-              Number(rawAmt) || 0;
+    const d = (dateVal instanceof Date) ? dateVal : new Date(dateVal);
+    if (isNaN(d.getTime())) continue;
+    _totalRows++;
 
-    const fullKey = `${tCat}|${tGrp}|${tTyp}`;
-    const targetObj = catMap[fullKey] || fallbackCatMap[tCat];
+    // Extract year and month using spreadsheet timezone (avoids script timezone mismatch)
+    const txnYear = parseInt(Utilities.formatDate(d, tz, 'yyyy'), 10);
+    const txnMonth = parseInt(Utilities.formatDate(d, tz, 'M'), 10) - 1; // 0-based
+    if (txnYear !== targetYear) continue;
+    _yearMatch++;
 
-    if (targetObj) {
-      if (targetObj.type !== 'Income' && targetObj.type !== 'Transfers') {
-        amt = Math.abs(amt); 
-      }
-      targetObj.actual[date.getMonth()] += amt;
+    const transactionCategory = String(row[TRAN_COL.CATEGORY] || '').trim();
+    if (!visibleCategories.has(transactionCategory)) continue;
+    _catMatch++;
+
+    // Robust amount parsing (handles string or number values)
+    let rawAmt = row[TRAN_COL.AMOUNT];
+    let amt = (typeof rawAmt === 'string') ?
+      parseFloat(rawAmt.replace(/[$,]/g, '')) || 0 :
+      Number(rawAmt) || 0;
+
+    if (!actualMap[transactionCategory]) {
+      actualMap[transactionCategory] = Array(12).fill(0);
     }
+    actualMap[transactionCategory][txnMonth] += amt;
   }
+
+  // C. Apply actualMap to the tree objects
+  Object.keys(tree).forEach(type => {
+    Object.keys(tree[type]).forEach(group => {
+      Object.keys(tree[type][group]).forEach(catName => {
+        const catObj = tree[type][group][catName];
+        if (actualMap[catName]) {
+          for (let m = 0; m < 12; m++) {
+            let amt = actualMap[catName][m];
+            // Expenses: use absolute value (Plaid amounts are positive for debits)
+            if (catObj.type !== 'Income' && catObj.type !== 'Transfers') {
+              amt = Math.abs(amt);
+            }
+            catObj.actual[m] = amt;
+          }
+        }
+      });
+    });
+  });
 
   // --- 3. OUTPUT GENERATION ---
 
   const outputRows = [];
-  const metaRows = []; 
+  const metaRows = [];
   const monthlyCashFlowTotals = {
-    incomeBudget: Array(12).fill(0), expenseBudget: Array(12).fill(0), 
+    incomeBudget: Array(12).fill(0), expenseBudget: Array(12).fill(0),
     incomeActual: Array(12).fill(0), expenseActual: Array(12).fill(0)
   };
 
-  const sortedTypes = Object.keys(tree).sort((a, b) => 
+  const sortedTypes = Object.keys(tree).sort((a, b) =>
     a === "Income" ? -1 : b === "Income" ? 1 : a.localeCompare(b)
   );
 
@@ -150,8 +188,8 @@ function populateYearlyBudget() {
       });
 
       outputRows[groupHeaderIndex] = buildRowData("G", group, groupTotals.budget, groupTotals.actual, type);
-      outputRows.push(Array(outputRows[outputRows.length - 1].length).fill("")); 
-      metaRows.push("SPACER"); 
+      outputRows.push(Array(outputRows[outputRows.length - 1].length).fill(""));
+      metaRows.push("SPACER");
 
       for (let m = 0; m < 12; m++) {
         typeTotals.budget[m] += groupTotals.budget[m];
@@ -160,7 +198,7 @@ function populateYearlyBudget() {
     });
 
     outputRows[typeHeaderIndex] = buildRowData("AL", type, typeTotals.budget, typeTotals.actual, type);
-    
+
     if (type === "Income") {
       for (let m=0; m<12; m++) { monthlyCashFlowTotals.incomeBudget[m] += typeTotals.budget[m]; monthlyCashFlowTotals.incomeActual[m] += typeTotals.actual[m]; }
     } else if (type === "Expense") {
@@ -172,7 +210,7 @@ function populateYearlyBudget() {
   if (outputRows.length > 0) {
     const range = outSheet.getRange(10, 1, outputRows.length, outputRows[0].length);
     range.setValues(outputRows).setFontFamily("Comfortaa").setFontSize(10);
-    
+
     const fmtPercent = '0.00%';
     const numFormatRanges = [], pctFormatRanges = [], typeRanges = [], groupRanges = [], borderRanges = [];
 
@@ -200,7 +238,7 @@ function populateYearlyBudget() {
     outSheet.getRangeList(borderRanges).setBorder(false, false, false, true, false, false, '#355348', SpreadsheetApp.BorderStyle.SOLID);
     outSheet.getRange(10, 3, outputRows.length, outputRows[0].length-2).setHorizontalAlignment('right');
   }
-  
+
   // --- 5. CASH FLOW SUMMARY ---
   outSheet.getRange('E3').setValue(monthlyCashFlowTotals.incomeBudget.reduce((a,b)=>a+b,0) - monthlyCashFlowTotals.expenseBudget.reduce((a,b)=>a+b,0)).setNumberFormat(fmtCurrency);
   outSheet.getRange('E4').setValue(monthlyCashFlowTotals.incomeActual.reduce((a,b)=>a+b,0) - monthlyCashFlowTotals.expenseActual.reduce((a,b)=>a+b,0)).setNumberFormat(fmtCurrency);
@@ -211,12 +249,12 @@ function populateYearlyBudget() {
     outSheet.getRange(4, col).setValue(monthlyCashFlowTotals.incomeActual[m] - monthlyCashFlowTotals.expenseActual[m]).setNumberFormat(fmtCurrency);
   }
 
-  outSheet.getRange('B3').setValue("Last updated on " + getDateTime());
+  outSheet.getRange('B3').setValue("Last updated on " + getDateTime() );
 }
 
 function buildRowData(id, name, budgetArr, actualArr, type) {
   const isIncome = (type === "Income" || type === "Transfers");
-  const mult = isIncome ? -1 : 1; 
+  const mult = isIncome ? -1 : 1;
   let annB = 0, annA = 0;
   for (let i=0; i<12; i++) { annB += budgetArr[i]; annA += actualArr[i]; }
 

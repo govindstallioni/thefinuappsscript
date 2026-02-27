@@ -344,6 +344,8 @@ function showExistingAccountFields(thisEle){
   formEle.querySelector('#use-manual-account-btn').classList.add('bg-gray-200', 'text-gray-700');
   document.getElementById('existing-account-fields').classList.remove('hidden');
   document.getElementById('manual-account-fields').classList.add('hidden');
+  // Clear other tab's fields so they don't interfere with FormData
+  document.getElementById('manual-account-fields').innerHTML = '';
   // add please wait loader
   formEle.querySelector('#existing-account-fields').innerHTML = '<p class="text-gray-600 py-4 text-center">Loading...</p>';
   google.script.run.withSuccessHandler(function(response){
@@ -360,6 +362,8 @@ function showManualAccountFields(thisEle){
   formEle.querySelector('#use-existing-account-btn').classList.add('bg-gray-200', 'text-gray-700');
   document.getElementById('manual-account-fields').classList.remove('hidden');
   document.getElementById('existing-account-fields').classList.add('hidden');
+  // Clear other tab's fields so they don't interfere with FormData
+  document.getElementById('existing-account-fields').innerHTML = '';
   // add please wait loader
   formEle.querySelector('#manual-account-fields').innerHTML = '<p class="text-gray-600 py-4 text-center">Loading...</p>';
   google.script.run.withSuccessHandler(function(response){

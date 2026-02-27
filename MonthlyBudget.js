@@ -33,7 +33,7 @@ function populateMonthlyBudget() {
     // --- Performance Optimization: Read all Control Data in one go ---
     const budgetConfigRange = controlSheet.getRange('C3:C12').getValues().flat();
     const dateConfig = controlSheet.getRange('AC4').getValue();
-    const monthColumns = controlSheet.getRange('W2:W12').getValues().flat();
+    const monthColumns = controlSheet.getRange('W2:W13').getValues().flat();
 
     // Category Data Column Mappings (indices based on 0-based array)
     const catLstrw = budgetConfigRange[0];
@@ -100,35 +100,35 @@ function populateMonthlyBudget() {
     }
 
     // --- 2. Process Transaction Data (Actual Data) ---
-    const tranConfigRange = controlSheet.getRange('I3:I12').getValues().flat();
-    const tanLstRw = tranConfigRange[0]; 
-    const tanLstCol = tranConfigRange[1];
-    
-    const tranData = tranSheet.getRange(2, 2, tanLstRw - 1, tanLstCol).getValues();
+    // Read column mappings from Definition sheet I5:I12 (matching YearlyBudget approach)
+    const tranConfigRaw = controlSheet.getRange('I5:I12').getValues().flat();
     const TRAN_COL = {
-        DATE: 0,
-        CATEGORY: 2, 
-        AMOUNT: 3,   
-        OWNER: 4,
-        ASSIGNED: 5,
-        GROUPED_KEY: 12
+        DATE: tranConfigRaw[4] - 1,    // I9: Date column (0-based)
+        CATEGORY: tranConfigRaw[0] - 1, // I5: Category column (0-based)
+        GROUPED_KEY: tranConfigRaw[1] - 1, // I6: Group column (0-based)
+        AMOUNT: tranConfigRaw[5] - 1,   // I10: Amount column (0-based)
+        OWNER: tranConfigRaw[6] - 1,    // I11: Owner column (0-based)
     };
 
-    const formatTransGroup = {}; 
+    // Read ALL transaction data (avoids stale I3/I4 row count issues)
+    const tranData = tranSheet.getDataRange().getValues();
+
+    const formatTransGroup = {};
     const targetMonth = dateValue.getMonth();
     const targetYear = dateValue.getFullYear();
-    
-    tranData.forEach(row => {
-        const dateCell = row[TRAN_COL.DATE];
-        let d;
-        if (dateCell instanceof Date) d = dateCell;
-        else if (typeof dateCell === 'string' && dateCell) d = new Date(dateCell);
-        else return;
-        
+
+    for (let i = 1; i < tranData.length; i++) {
+        const row = tranData[i];
+        const dateVal = row[TRAN_COL.DATE];
+        if (!dateVal) continue;
+
+        const d = (dateVal instanceof Date) ? dateVal : new Date(dateVal);
+        if (isNaN(d.getTime())) continue;
+
         if (d.getMonth() === targetMonth && d.getFullYear() === targetYear) {
             const transactionCategory = String(row[TRAN_COL.CATEGORY] || '').trim();
             if (!visibleCategories.has(transactionCategory)) {
-                return; 
+                continue;
             }
             let groupedKey = String(row[TRAN_COL.GROUPED_KEY] || '').trim();
             const owner = row[TRAN_COL.OWNER];
@@ -140,13 +140,20 @@ function populateMonthlyBudget() {
             if (!formatTransGroup[groupedKey]) {
                 formatTransGroup[groupedKey] = [];
             }
+
+            // Robust amount parsing (handles string or number values)
+            let rawAmt = row[TRAN_COL.AMOUNT];
+            let amt = (typeof rawAmt === 'string') ?
+                parseFloat(rawAmt.replace(/[$,]/g, '')) || 0 :
+                Number(rawAmt) || 0;
+
             formatTransGroup[groupedKey].push({
                 'category': transactionCategory,
-                'amount': row[TRAN_COL.AMOUNT] || 0,
+                'amount': amt,
                 'owner': owner || 'Joint'
             });
         }
-    });
+    }
 
     // --- 3. Process All Visible Categories ---
     const allProcessedCategories = aggregateCategoryData(catAry, formatTransGroup); 

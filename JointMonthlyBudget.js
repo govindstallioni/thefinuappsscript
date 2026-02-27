@@ -78,7 +78,7 @@ function getJointConfig(ss) {
 	// C3:C12 contains general budget settings (0-based indexing in array)
 	const budgetConfigRange = controlSheet.getRange('C3:C12').getValues().flat();
 	const dateConfig = controlSheet.getRange('AD4').getValue();
-	const monthColumns = controlSheet.getRange('W2:W12').getValues().flat();
+	const monthColumns = controlSheet.getRange('W2:W13').getValues().flat();
 	
 	// I3:I12 contains transaction settings: Last Row, Last Col, and custom column numbers
 	const tranConfigRange = controlSheet.getRange('I3:I12').getValues().flat(); 
@@ -289,85 +289,97 @@ function getJointCategoryData(config) {
  * @return {object} Map of category names to actual split spending {p1: amount, p2: amount}.
  */
 function getJointTransactionData(config, categoryRatioMap) {
-	const lastRw = config.tranLstrw;
-	const lastCol = config.tranColEnd;
-	const START_COL_INDEX = 1; // Column A
-	const numColumns = lastCol - START_COL_INDEX + 1; 
+	// Read column mappings DIRECTLY from Definition sheet I5:I12
+	// (same proven pattern as the working MonthlyBudget)
+	const controlSheet = config.ss.getSheetByName('Definition');
+	const tranSheet = config.ss.getSheetByName("Transactions");
+	const tranConfigRaw = controlSheet.getRange('I5:I12').getValues().flat();
 
-	// Read all necessary data, starting from row 2
-	const data = config.tranSheet.getRange(2, START_COL_INDEX, lastRw - 1, numColumns).getValues(); 
-	
-	const actualMap = {};
-
-	// Calculate the 0-based index in the 'data' array for each required column 
-	// by subtracting the starting column index (1 for Column A)
-	const COL_TRAN = { 
-		DATE: config.tranCol.DATE - START_COL_INDEX,
-		CATEGORY: config.tranCol.CATEGORY - START_COL_INDEX, 
-		AMOUNT: config.tranCol.AMOUNT - START_COL_INDEX, 
-		OWNER: config.tranCol.OWNER - START_COL_INDEX,
-		ASSIGNED_AMT: config.tranCol.ASSIGNED_AMT - START_COL_INDEX 
+	// 0-based column indices (matching MonthlyBudget exactly)
+	const TRAN_COL = {
+		CATEGORY: tranConfigRaw[0] - 1,     // I5: Category column
+		DATE: tranConfigRaw[4] - 1,          // I9: Date column
+		AMOUNT: tranConfigRaw[5] - 1,        // I10: Amount column
+		OWNER: tranConfigRaw[6] - 1,         // I11: Owner column
+		ASSIGNED_AMT: tranConfigRaw[7] - 1   // I12: Assigned Amount column
 	};
 
-	data.forEach(row => {
-		const dateCell = row[COL_TRAN.DATE];
-		// Basic date validation
-		let d = (dateCell instanceof Date) ? dateCell : new Date(dateCell);
-		if (isNaN(d.getTime())) return;
+	// Read ALL transaction data (same as working MonthlyBudget)
+	const tranData = tranSheet.getDataRange().getValues();
+	const actualMap = {};
 
-		// Filter by month and year
+	const parseAmount = (val) => {
+		if (typeof val === 'number') return val;
+		if (typeof val === 'string') return parseFloat(val.replace(/[$,]/g, '')) || 0;
+		return 0;
+	};
+
+	const name1 = config.name1;
+	const name2 = config.name2;
+
+	for (let i = 1; i < tranData.length; i++) {
+		const row = tranData[i];
+		const dateVal = row[TRAN_COL.DATE];
+		if (!dateVal) continue;
+
+		const d = (dateVal instanceof Date) ? dateVal : new Date(dateVal);
+		if (isNaN(d.getTime())) continue;
+
 		if (d.getMonth() === config.targetMonth && d.getFullYear() === config.targetYear) {
+			const cat = String(row[TRAN_COL.CATEGORY] || '').trim();
+			if (!cat) continue;
 
-			const parseAmount = (val) => {
-				if (typeof val === 'number') return val;
-				// Safely parse string amount
-				if (typeof val === 'string') return parseFloat(val.toString().replace(/[^0-9.-]/g, '')) || 0;
-				return 0;
-			};
+			// Robust amount parsing (handles string or number values)
+			let rawAmt = row[TRAN_COL.AMOUNT];
+			let amt = (typeof rawAmt === 'string') ?
+				parseFloat(rawAmt.replace(/[$,]/g, '')) || 0 :
+				Number(rawAmt) || 0;
 
-			const cat = (row[COL_TRAN.CATEGORY] || 'Unknown').toString().trim();
-			// rawAmt is the value from the main AMOUNT column (I10 config)
-			const rawAmt = parseAmount(row[COL_TRAN.AMOUNT] ) || 0;
-			
-			// Trim and check owner name for reliable matching
-			const owner = row[COL_TRAN.OWNER] ? row[COL_TRAN.OWNER].toString().trim() : '';
+			const totalAmt = Math.abs(amt);
+			const owner = row[TRAN_COL.OWNER] ? String(row[TRAN_COL.OWNER]).trim() : '';
+			const assignedAmt = parseAmount(row[TRAN_COL.ASSIGNED_AMT]) || 0;
 
 			let amtP1 = 0;
 			let amtP2 = 0;
-			
-			const name1 = config.name1; 
-			const name2 = config.name2;
-			
-			// Assigned Amount is the value from the Assigned Amount column (I12 config)
-			const assignedAmt = parseAmount( row[COL_TRAN.ASSIGNED_AMT] ) || 0;
-			const totalAmt = Math.abs(rawAmt); // Absolute value of the transaction amount
 
-			// --- Individual Owner uses Assigned Amount ---
 			if (owner === name1) {
-				// Owner is Name1: Name1 takes the Assigned Amount
-				amtP1 = Math.abs(assignedAmt); 
-				amtP2 = 0; 
+				amtP1 = assignedAmt !== 0 ? Math.abs(assignedAmt) : totalAmt;
+				amtP2 = 0;
 			} else if (owner === name2) {
-				// Owner is Name2: Name2 takes the Assigned Amount
-				amtP2 = Math.abs(assignedAmt);
+				amtP2 = assignedAmt !== 0 ? Math.abs(assignedAmt) : totalAmt;
 				amtP1 = 0;
-			} else if(owner === 'Household' || owner === 'Joint'){
-        // --- EXISTING LOGIC: Other/Blank Owner splits main AMOUNT 50/50 --- 
-        amtP1 = Math.abs(assignedAmt);
-        amtP2 = Math.abs(assignedAmt);
-			}else{
-        // Owner is blank, or some other value: Split the *main* AMOUNT column 50/50.
-        amtP1 = totalAmt / 2;
-        amtP2 = totalAmt / 2;
-      }
+			} else if (owner === 'Household' || owner === 'Joint') {
+				if (assignedAmt !== 0) {
+					amtP1 = Math.abs(assignedAmt);
+					amtP2 = Math.abs(assignedAmt);
+				} else {
+					const ratios = categoryRatioMap[cat];
+					if (ratios) {
+						amtP1 = totalAmt * ratios.ratio1;
+						amtP2 = totalAmt * ratios.ratio2;
+					} else {
+						amtP1 = totalAmt / 2;
+						amtP2 = totalAmt / 2;
+					}
+				}
+			} else {
+				// Owner is blank or unrecognized: split using category ratios or 50/50
+				const ratios = categoryRatioMap[cat];
+				if (ratios) {
+					amtP1 = totalAmt * ratios.ratio1;
+					amtP2 = totalAmt * ratios.ratio2;
+				} else {
+					amtP1 = totalAmt / 2;
+					amtP2 = totalAmt / 2;
+				}
+			}
 
 			if (!actualMap[cat]) actualMap[cat] = { p1: 0, p2: 0 };
-			
 			actualMap[cat].p1 += amtP1;
 			actualMap[cat].p2 += amtP2;
 		}
-	});
-	
+	}
+
 	return actualMap;
 }
 

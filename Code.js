@@ -58,6 +58,17 @@ function onInstall(e) {
   onOpen(e);
 }
 
+/*function onEdit(e){
+   if (!e || !e.range) return;
+  const range = e.range;
+  const sheet = range.getSheet();
+  const column = range.getColumn();
+  const row = range.getRow();
+  const newValue = e.value;
+  const oldValue = e.oldValue;
+  const editCell = range.getA1Notation();
+}*/
+
 function handleAddonEdit(e){
   if (!e || !e.range) return;
   const range = e.range;
@@ -68,7 +79,20 @@ function handleAddonEdit(e){
   const oldValue = e.oldValue;
   const editCell = range.getA1Notation();
   // Get row data
-  const rowData = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
+   const rowData = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+  if( sheet.getName() === USER_MONTHLY_BUDGET_SHEET && editCell === 'C2' ){
+    startGenerationOfMonthlyBudget();
+  }
+  if( sheet.getName() === USER_YEARLY_BUDGET_SHEET && editCell === 'E2' ){
+    startGenerationOfYearlyBudget();
+  }
+  if( sheet.getName() === USER_JOINT_MONTHLY_BUDGET_SHEET && editCell === 'C2' ){
+    startGenerationOfJointMonthlyBudget();
+  }
+  if( sheet.getName() === USER_JOINT_YEARLY_BUDGET_SHEET && editCell === 'D2' ){
+    startGenerationOfJointYearlyBudget();
+  }
   if( sheet.getName() === USER_ACCOUNTS_SHEET ){
     if( column === 6 || column === 8 || column === 10 || column === 11 ){
       populateNetWorth();
@@ -83,19 +107,8 @@ function handleAddonEdit(e){
       }
     }
   }
-  if( sheet.getName() === USER_MONTHLY_BUDGET_SHEET && editCell === 'C2' ){
-    startGenerationOfMonthlyBudget();
-  }
-  if( sheet.getName() === USER_YEARLY_BUDGET_SHEET && editCell === 'E2' ){
-    startGenerationOfYearlyBudget();
-  }
-  if( sheet.getName() === USER_JOINT_MONTHLY_BUDGET_SHEET && editCell === 'C2' ){
-    startGenerationOfJointMonthlyBudget();
-  }
-  if( sheet.getName() === USER_JOINT_YEARLY_BUDGET_SHEET && editCell === 'D2' ){
-    startGenerationOfJointYearlyBudget();
-  }
 }
+
 
 function appBaseTemplates(){
   return [
@@ -817,6 +830,10 @@ function processUnlinkAccountTask() {
 
     populateNetWorth();
     populateJointNetWorth();
+    populateMonthlyBudget();
+    populateJointMonthlyBudget();
+    populateYearlyBudget();
+    populateJointYearlyBudget();
 
     let definitionSheet = UserSpreadsheet.getSheetByName(USER_DEFINITION_SHEET);
     let transactionSheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
@@ -1249,9 +1266,10 @@ function generateUniqueId(){
 
 function formatDateToMMDDYYYY(dateString){
   let date = new Date(dateString);
-  let month = (date.getMonth() + 1).toString().padStart(2, '0');
-  let day = date.getDate().toString().padStart(2, '0');
-  let year = date.getFullYear();
+  // Use "getUTC" methods to prevent timezone shifting
+  let month = (date.getUTCMonth() + 1).toString().padStart(2, '0');
+  let day = date.getUTCDate().toString().padStart(2, '0');
+  let year = date.getUTCFullYear();
   return `${month}/${day}/${year}`;
 }
 
