@@ -75,21 +75,18 @@
         background-color: #93c5fd !important; /* Lighter blue */
         cursor: not-allowed;
       }
+      /* Button success flash */
+      .btn-complete {
+        background-color: #16a34a !important;
+        color: white !important;
+        transition: background-color 0.3s;
+      }
     </style>
   </head>
   <body class="text-xs">
 
-    <div id="loader">
-      <div class="spinner"></div>
-      <p class="mt-4 text-gray-600 font-medium">Please wait..</p>
-    </div>
-    <div id="main-app" class="p-4"></div>
+    <div id="main-app" class="p-4"><?!= wizardContent ?></div>
     <div id="app-notification-action" class="p-4 hidden"></div>
-    <script>
-      window.onload = function() {
-        showSetupWizard(); // Immediately call the server-side validation
-      };
-    </script>
     <?!= HtmlService.createHtmlOutputFromFile('setupWizardJs').getContent(); ?>
     <?!= HtmlService.createHtmlOutputFromFile('commonJs').getContent(); ?>
   </body>

@@ -239,8 +239,13 @@ function saveRename( account_id, btnEle ){
 }
 
 // Backend Callbacks
-function linkNewAccount() {
-  google.script.run.linkNewAccount();
+function linkNewAccount(btnEle) {
+  if (btnEle) { btnEle.disabled = true; btnEle.textContent = 'Opening...'; }
+  google.script.run.withSuccessHandler(function(){
+    if (btnEle) { btnEle.disabled = false; btnEle.textContent = '+ Link Plaid Account'; }
+  }).withFailureHandler(function(){
+    if (btnEle) { btnEle.disabled = false; btnEle.textContent = '+ Link Plaid Account'; }
+  }).linkNewAccount();
 }
 
 function removeAccount(account_id) {
@@ -407,9 +412,7 @@ function submitBalanceHistoryForm(event){
     if( response.success === true ){
       formEle.querySelector('.responsemessage').innerHTML = actionSuccessMessage(response.message);
       formEle.querySelector('.responsemessage').classList.remove("hidden");
-      submitBtn.disabled = false;
-      submitBtn.textContent = "Add Balance History";
-      // Reset form
+      buttonEventComplete(submitBtn, 'Saved!', 'Add Balance History', 2000);
       formEle.reset();
     }else{
       formEle.querySelector('.responsemessage').innerHTML = actionFailureMessage(response.message);
@@ -426,30 +429,32 @@ function submitBalanceHistoryForm(event){
 
 function generateFinancialReport(btnEle){
   btnEle.disabled = true;
-  btnEle.textContent = "Generating..";
+  btnEle.textContent = "Generating...";
   google.script.run.withSuccessHandler(function(response){
-    btnEle.disabled = false;
-    btnEle.textContent = "Generate Report";
+    buttonEventComplete(btnEle, 'Report Generated!', 'Generate Report', 2500);
   }).withFailureHandler(function(error){
     showMessage((error.message || "Unknown error, Please reopen the app."), 'error');
     btnEle.disabled = false;
-    btnEle.textContent = "Generate Financial Report";
+    btnEle.textContent = "Generate Report";
   }).generateFinancialReport();
 }
 
 function toggleAutoSync(btnEle, enable){
   btnEle.disabled = true;
-  btnEle.textContent = enable ? "Enabling.." : "Disabling..";
+  btnEle.textContent = enable ? "Enabling..." : "Disabling...";
   google.script.run.withSuccessHandler(function(response){
-    btnEle.disabled = false;
-    btnEle.textContent = enable ? "Disable Auto-Sync" : "Enable Auto-Sync";
-    if( enable ){
-      btnEle.classList.remove("theme-bg-primary");
-      btnEle.classList.add("theme-bg-light");
-    }else{
-      btnEle.classList.remove("theme-bg-light");
-      btnEle.classList.add("theme-bg-primary");
-    }
+    var newLabel = enable ? "Disable Auto-Sync" : "Enable Auto-Sync";
+    // Flash success then update to new toggle state
+    buttonEventComplete(btnEle, enable ? 'Enabled!' : 'Disabled!', newLabel, 1500);
+    setTimeout(function(){
+      if( enable ){
+        btnEle.classList.remove("theme-bg-primary");
+        btnEle.classList.add("theme-bg-light");
+      }else{
+        btnEle.classList.remove("theme-bg-light");
+        btnEle.classList.add("theme-bg-primary");
+      }
+    }, 1600);
     showMessage(response.message, 'success');
   }).withFailureHandler(function(error){
     showMessage((error.message || "Unknown error"), 'error');
@@ -459,15 +464,13 @@ function toggleAutoSync(btnEle, enable){
 }
 
 function handleCancelSubscription(btn){
-  // Ask server to show Google UI confirmation dialog
-  if (btn) { btn.disabled = true; orig = btn.innerText; btn.innerText = 'Cancelling...'; }
+  if (btn) { btn.disabled = true; var orig = btn.innerText; btn.innerText = 'Cancelling...'; }
   google.script.run.withSuccessHandler(function(response){
     if (btn) { btn.disabled = false; btn.innerText = orig; }
     google.script.run.showSidebar();
-  }).withFailureHandler( function(error){
+  }).withFailureHandler(function(error){
     showMessage((error.message || "Unknown error"), 'error');
-    btn.disabled = false;
-    btn.innerText = orig;
+    if (btn) { btn.disabled = false; btn.innerText = orig; }
   }).cancelUserSubscription();
 }
 </script>

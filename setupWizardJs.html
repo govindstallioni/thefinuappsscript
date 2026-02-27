@@ -4,23 +4,11 @@ const paymentProcessingTime = 120; // seconds (2 minutes)
 let countdownInterval;
 let remainingSeconds = paymentProcessingTime; // 90 seconds
 let subscriptionPollIntervalId = null;
-let userNavigated = false; // when true, don't auto-navigate away from user's current step
 
 function getSetupWizardEle(){
   return document.getElementById('setup-wizard');
 }
 
-function showSetupWizard() {
-  google.script.run.withSuccessHandler(function(response){
-    loaderEle.classList.add('hidden');
-    mainAppEle.innerHTML = response;
-    // refresh UI progress after loading
-    refreshSetupProgressUI();
-  }).withFailureHandler(function(error){
-    loaderEle.classList.add('hidden');
-    mainAppEle.textContent = error.message || 'Failed to load setup wizard';
-  }).showSetupWizardTemplate();
-}
 
 // Step Navigation
 function handleStepStartFreeTrial(btnEl) {
@@ -158,57 +146,21 @@ function updateButtonText(btn) {
 }
 
 
-function refreshSetupProgressUI(){
-  // fetch current progress from server and update UI
-  google.script.run.withSuccessHandler(function(progress){
-    if (!progress) return;
-    console.log(progress);
-    applyProgressToSteps(progress);
-  }).getSetupWizardProgress();
-}
-
-function applyProgressToSteps(progress){
-  try{
-    // if user manually navigated, don't auto-switch steps
-    if (userNavigated) return;
-
-    // hide all steps
-    document.querySelectorAll('#setup-wizard > div').forEach(div => div.classList.add('hidden'));
-    // decide which step to show
-    if (progress.subscription && progress.subscription.status === 'active'){
-      if (!(progress.template && progress.template.status === 'completed')){
-        // show template step
-        const el = document.getElementById('step-3'); if (el) el.classList.remove('hidden');
-        return;
-      }
-      if (!(progress.config && progress.config.status === 'completed')){
-        const el = document.getElementById('step-4'); if (el) el.classList.remove('hidden');
-        return;
-      }
-      // all steps complete
-      const el = document.getElementById('step-5'); if (el) el.classList.remove('hidden');
-      return;
-    }else{
-      // subscription not active - show subscription step (step-2) if user already entered welcome
-      const elWelcome = document.getElementById('step-1');
-      const elSub = document.getElementById('step-2');
-      // If user already started (e.g., subscription checkout started), show subscription step
-      if (progress.subscription && progress.subscription.status && progress.subscription.status !== 'pending'){
-        if (elSub) elSub.classList.remove('hidden');
-      }else{
-        // default to welcome
-        if (elWelcome) elWelcome.classList.remove('hidden');
-      }
-    }
-  }catch(e){ console.warn('applyProgressToSteps', e); }
-}
-
 function nextStep(n){
-  // mark that the user has manually navigated so auto UI refresh won't override
-  userNavigated = true;
   appNotificationEle.textContent = '';
-  document.querySelectorAll('#setup-wizard > div').forEach(div => div.classList.add('hidden'));
+  document.querySelectorAll('#setup-wizard > .step-card').forEach(div => div.classList.add('hidden'));
   document.getElementById('step-' + n).classList.remove('hidden');
+  updateStepDots(n);
+}
+
+function updateStepDots(activeStep){
+  var dots = document.querySelectorAll('.step-dot');
+  dots.forEach(function(dot, i){
+    var step = i + 1;
+    dot.classList.remove('active', 'completed');
+    if(step < activeStep) dot.classList.add('completed');
+    else if(step === activeStep) dot.classList.add('active');
+  });
 }
 
 function launchApp(btnEl) {
@@ -288,10 +240,11 @@ function goToNextStep(btn, nextstep) {
 
   stepEl.classList.add('hidden');
 
-  const nextStep = wizardEl.querySelector('#step-'+ nextstep);
-  if (nextStep) {
-    nextStep.classList.remove('hidden');
+  const nextStepEl = wizardEl.querySelector('#step-'+ nextstep);
+  if (nextStepEl) {
+    nextStepEl.classList.remove('hidden');
   }
+  updateStepDots(nextstep);
 }
 
 function showStepBlockMessageElement( data ){

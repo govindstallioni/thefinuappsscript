@@ -1,33 +1,49 @@
 <div id="mainTab">
   <!-- Tabs -->
   <div class="flex border-b border-gray-400 bg-white sticky top-0 z-10">
-    <button 
-      onclick="showTab('accounts')" 
-      id="btn-accounts" 
-      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition active">Accounts
+    <button
+      onclick="showTab('accounts')"
+      id="btn-accounts"
+      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition active">
+      <div class="flex flex-col items-center gap-0.5">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4z"/></svg>
+        <span>Accounts</span>
+      </div>
     </button>
-    <button 
-      onclick="showTab('settings')" 
-      id="btn-settings" 
-      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition">Settings
+    <button
+      onclick="showTab('settings')"
+      id="btn-settings"
+      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition">
+      <div class="flex flex-col items-center gap-0.5">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span>Settings</span>
+      </div>
     </button>
-    <button 
-      onclick="showTab('support')" 
-      id="btn-support"
-      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition">Support
-    </button>
-    <button 
-      onclick="showTab('reports')" 
+    <button
+      onclick="showTab('reports')"
       id="btn-reports"
-      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition">Reports
+      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition">
+      <div class="flex flex-col items-center gap-0.5">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <span>Reports</span>
+      </div>
+    </button>
+    <button
+      onclick="showTab('support')"
+      id="btn-support"
+      class="cursor-pointer tab-btn flex-1 py-2 text-center font-medium text-gray-700 hover:text-blue-600 transition">
+      <div class="flex flex-col items-center gap-0.5">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span>Support</span>
+      </div>
     </button>
   </div>
 
   <!-- Tab Contents -->
   <div id="tab-accounts" class="py-4 px-0 tab-content">
     <div class="flex justify-between items-center mb-4">
-      <button onclick="linkNewAccount()"
-      class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium border border-gray-400 transition">+ Link New Account</button>
+      <button onclick="linkNewAccount(this)"
+      class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium border border-gray-400 transition">+ Link Plaid Account</button>
       <button onclick="addNewBalanceHistory(this)"
       class="cursor-pointer w-full ml-2 py-2 px-2 theme-bg-semi-light rounded-lg font-medium border border-gray-400 transition">+ Add Balance History</button>
     </div>
@@ -126,32 +142,3 @@
       class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Generate Report</button>
   </div>
 </div>
-<script>
-function handleCancelSubscription(btn){
-  // Ask server to show Google UI confirmation dialog
-  google.script.run.withSuccessHandler(function(confirmed){
-    if (!confirmed) return;
-    if (btn) {
-      btn.disabled = true;
-      var origText = btn.innerText;
-      btn.innerText = 'Cancelling...';
-    }
-    google.script.run.withSuccessHandler(function(resp){
-      if (btn) { btn.disabled = false; btn.innerText = origText; }
-      if (resp && resp.success === true){
-        // Use server-side UI alert to notify as well
-        try{ google.script.run.showCancelSubscriptionResult(); }catch(e){}
-        try{ google.script.run.clearSubscriptionProgress(); }catch(e){}
-        // reload the sidebar to reflect changes
-        location.reload();
-      }else{
-        const msg = (resp && resp.result && resp.result.message) || resp.error || 'Failed to cancel subscription.';
-        alert(msg);
-      }
-    }).withFailureHandler(function(err){
-      if (btn) { btn.disabled = false; btn.innerText = origText; }
-      alert('Error cancelling subscription: ' + err);
-    }).cancelUserSubscription();
-  }).showCancelSubscriptionConfirm();
-}
-</script>

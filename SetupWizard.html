@@ -1,58 +1,142 @@
+<?
+  var subActive = progress && progress.subscription && progress.subscription.status === 'active';
+  var templateDone = progress && progress.template && progress.template.status === 'completed';
+  var configDone = progress && progress.config && progress.config.status === 'completed';
+  var activeStep = 1;
+  if (subActive && configDone && templateDone) { activeStep = 5; }
+  else if (subActive && templateDone) { activeStep = 4; }
+  else if (subActive) { activeStep = 3; }
+  else if (progress && progress.subscription && progress.subscription.status && progress.subscription.status !== 'pending') { activeStep = 2; }
+?>
+<style>
+  .step-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border: 1px solid #e5e7eb; }
+  .step-icon { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
+  .step-progress { display: flex; justify-content: center; gap: 8px; margin-bottom: 16px; }
+  .step-dot { width: 10px; height: 10px; border-radius: 50%; background: #d1d5db; transition: all 0.3s; }
+  .step-dot.active { background: var(--color_02); transform: scale(1.2); }
+  .step-dot.completed { background: var(--color_01); }
+  .step-label { font-size: 10px; color: #9ca3af; text-align: center; margin-bottom: 4px; }
+  .step-feature { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; }
+  .step-feature svg { flex-shrink: 0; margin-top: 1px; }
+  .step-feature span { color: #6b7280; }
+</style>
+<div id="setup-wizard">
+  <!-- Step Progress Dots -->
+  <div class="step-progress">
+    <? for (var i = 1; i <= 5; i++) { ?>
+      <div class="step-dot <?= i < activeStep ? 'completed' : (i === activeStep ? 'active' : '') ?>"></div>
+    <? } ?>
+  </div>
 
-<div id="setup-wizard" class="">
-  <div id="step-1">
-    <h2 class="text-xl font-bold mb-4">Welcome to theFinU</h2>
-    <p class="app-welcome-text mb-3"><?= message ?></p>
-    <button onclick="nextStep(2)" class="cursor-pointer w-full theme-bg-primary text-white py-2 rounded">
+  <!-- Step 1: Welcome -->
+  <div id="step-1" class="step-card <?= activeStep !== 1 ? 'hidden' : '' ?>">
+    <div class="step-icon" style="background:var(--color_06);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--color_02)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+    </div>
+    <h2 class="text-lg font-bold text-center mb-2">Welcome to theFinU</h2>
+    <p class="app-welcome-text text-center text-gray-500 mb-4"><?= message ?></p>
+    <div class="mb-4">
+      <div class="step-feature">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Track your net worth automatically</span>
+      </div>
+      <div class="step-feature">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Sync bank accounts with Plaid</span>
+      </div>
+      <div class="step-feature">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <span>Generate financial reports in Google Sheets</span>
+      </div>
+    </div>
+    <button onclick="nextStep(2)" class="cursor-pointer w-full theme-bg-primary text-white py-2.5 rounded-lg font-medium">
       <div class="btn-loading-content">
-        <span id="getstart-btn" class="btn-text">Get Started</span>
-        <span id="getstart-btn-loader" class="btn-spinner hidden"></span>
+        <span class="btn-text">Get Started</span>
+        <span class="btn-spinner hidden"></span>
       </div>
     </button>
   </div>
-  <div id="step-2" class="hidden">
-    <h2 class="text-xl font-bold mb-4">Step 1: Free Trial</h2>
-    <p class="mb-4">Start your 14-day premium trial today.</p>
-    <div id="subscription-status" class="hidden"></div>
-    <button onclick="handleStepStartFreeTrial(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2 rounded">
+
+  <!-- Step 2: Free Trial -->
+  <div id="step-2" class="step-card <?= activeStep !== 2 ? 'hidden' : '' ?>">
+    <div class="step-icon" style="background:#e0f2fe;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+      </svg>
+    </div>
+    <div class="step-label">Step 1 of 4</div>
+    <h2 class="text-lg font-bold text-center mb-2">Start Your Free Trial</h2>
+    <p class="text-center text-gray-500 mb-1">Enjoy 14 days of full premium access.</p>
+    <p class="text-center text-gray-400 mb-4" style="font-size:10px;">No charge during trial period. Cancel anytime.</p>
+    <div id="subscription-status" class="hidden mb-3"></div>
+    <button onclick="handleStepStartFreeTrial(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2.5 rounded-lg font-medium">
       <div class="btn-loading-content">
-        <span id="trial-btn" class="btn-text">Start Free Trial</span>
-        <span id="trial-btn-loader" class="btn-spinner hidden"></span>
+        <span class="btn-text">Start Free Trial</span>
+        <span class="btn-spinner hidden"></span>
       </div>
     </button>
   </div>
 
-  <div id="step-3" class="hidden">
-    <h2 class="text-xl font-bold mb-4">Step 2: Template</h2>
-    <p class="mb-4">Click below to install the finance template.</p>
-    <button onclick="handleStepInstallTemplate(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2 rounded">
+  <!-- Step 3: Install Template -->
+  <div id="step-3" class="step-card <?= activeStep !== 3 ? 'hidden' : '' ?>">
+    <div class="step-icon" style="background:#dcfce7;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
+    </div>
+    <div class="step-label">Step 2 of 4</div>
+    <h2 class="text-lg font-bold text-center mb-2">Install Template</h2>
+    <p class="text-center text-gray-500 mb-1">Set up your finance tracking sheets.</p>
+    <p class="text-center text-gray-400 mb-4" style="font-size:10px;">Creates pre-built sheets for budgets, net worth, and more.</p>
+    <button onclick="handleStepInstallTemplate(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2.5 rounded-lg font-medium">
       <div class="btn-loading-content">
         <span class="btn-text">Install Template</span>
         <span class="btn-spinner hidden"></span>
       </div>
     </button>
-    <div class="step-messages hidden"></div>
+    <div class="step-messages hidden mt-3"></div>
   </div>
 
-  <div id="step-4" class="hidden">
-    <h2 class="text-xl font-bold mb-4">Step 3: Config</h2>
-    <label class="flex items-center mb-4">
-      <input type="checkbox" id="autosync" checked> <span class="ml-2">Activate Auto-Sync</span>
+  <!-- Step 4: Configuration -->
+  <div id="step-4" class="step-card <?= activeStep !== 4 ? 'hidden' : '' ?>">
+    <div class="step-icon" style="background:#fef3c7;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+      </svg>
+    </div>
+    <div class="step-label">Step 3 of 4</div>
+    <h2 class="text-lg font-bold text-center mb-2">Configure Settings</h2>
+    <p class="text-center text-gray-500 mb-4">Choose your preferences to get the most out of theFinU.</p>
+    <label class="flex items-center mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50 cursor-pointer">
+      <input type="checkbox" id="autosync" checked class="w-4 h-4">
+      <div class="ml-3">
+        <span class="font-medium text-gray-800">Auto-Sync</span>
+        <p class="text-gray-400 mt-0.5" style="font-size:10px;">Automatically sync your financial data daily.</p>
+      </div>
     </label>
-    <button onclick="handleStepSaveConfiguration(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2 rounded">
+    <button onclick="handleStepSaveConfiguration(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2.5 rounded-lg font-medium">
       <div class="btn-loading-content">
         <span class="btn-text">Save Configuration</span>
         <span class="btn-spinner hidden"></span>
       </div>
     </button>
-    <div class="step-messages hidden"></div>
+    <div class="step-messages hidden mt-3"></div>
   </div>
 
-  <div id="step-5" class="hidden">
-    <h2 class="text-xl font-bold mb-4">🎉Ready to launch</h2>
-    <h4 class="text-xs font-bold mb-2">Your setup is complete!</h4>
-    <p>Everything is configured and your add-on is now ready to use.</p>
-    <button onclick="launchApp(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2 rounded mt-2">
+  <!-- Step 5: Ready -->
+  <div id="step-5" class="step-card <?= activeStep !== 5 ? 'hidden' : '' ?>">
+    <div class="step-icon" style="background:#dcfce7;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+    </div>
+    <div class="step-label">Step 4 of 4</div>
+    <h2 class="text-lg font-bold text-center mb-2">You're All Set!</h2>
+    <p class="text-center text-gray-500 mb-1">Your setup is complete.</p>
+    <p class="text-center text-gray-400 mb-4" style="font-size:10px;">Your add-on is configured and ready to manage your finances.</p>
+    <button onclick="launchApp(this)" class="cursor-pointer w-full theme-bg-primary text-white py-2.5 rounded-lg font-medium">
       <div class="btn-loading-content">
         <span class="btn-text">Launch App</span>
         <span class="btn-spinner hidden"></span>

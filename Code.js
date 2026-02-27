@@ -156,8 +156,9 @@ function showSidebar() {
 }
 
 function showSetupWizardSidebar(){
-  const html = HtmlService.createTemplateFromFile('Index')
-      .evaluate()
+  const template = HtmlService.createTemplateFromFile('Index');
+  template.wizardContent = showSetupWizardTemplate();
+  const html = template.evaluate()
       .setTitle('ThefinU')
       .setWidth(300);
     SpreadsheetApp.getUi().showSidebar(html);
@@ -239,6 +240,7 @@ function showSetupWizardTemplate(){
     if( response.success === true ){
       const template = HtmlService.createTemplateFromFile('SetupWizard');
       template.message = response.result.appInstruction;
+      template.progress = getSetupWizardProgress();
       return template.evaluate().getContent();
     }else{
       const template = HtmlService.createTemplateFromFile('Error');

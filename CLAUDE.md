@@ -46,7 +46,7 @@ Each module reads/writes to a specific sheet:
 - **Global variables**: `UserEmail`, `UserSpreadsheet` are lazily initialized at the top of Code.js with try/catch for trigger safety
 - **Sheet name constants**: `USER_TRANSACTIONS_SHEET`, `USER_BALANCE_HISTORY_SHEET`, etc. defined at top of Code.js
 - **Template rendering**: Server-side functions return HTML strings via `HtmlService.createTemplateFromFile().evaluate().getContent()`, injected into sidebar via `innerHTML`
-- **GAS templating**: `<?= ?>` for HTML-escaped output, `<?!= ?>` for raw output. Use `<?= ?>` for user-controlled data; use data attributes + JS event listeners instead of inline `onclick` with dynamic values
+- **GAS templating**: `<? ?>` for scriptlets, `<?= ?>` for HTML-escaped output, `<?!= ?>` for raw output. NEVER use `<% %>` or `<%= %>` (EJS/ERB syntax) — GAS only recognizes `<? ?>` variants. Use `<?= ?>` for user-controlled data; use data attributes + JS event listeners instead of inline `onclick` with dynamic values
 - **Backend API**: All calls go to `API_ENDPOINT` (`https://thefinu.stallioni.com/`). Responses follow `{ success: boolean, result: ... }` pattern
 - **Settings caching**: `getAppSettings()` is cached per script execution via `_cachedAppSettings`. Call `clearAppSettingsCache()` if you need fresh data
 - **Auto-sync trigger**: `runThefinUPlaidAutoSync()` runs daily via time-based trigger. The installable edit trigger uses `handleAddonEdit()`

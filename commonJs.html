@@ -25,9 +25,26 @@ function buttonEventStart(btnEle, text){
 function buttonEventEnd(btnEle, text){
   const btnText = btnEle.querySelector('.btn-text');
   const btnSpinner = btnEle.querySelector('.btn-spinner');
-  btnText.innerText = text; 
+  btnText.innerText = text;
   btnEle.disabled = false;
   btnSpinner.classList.add('hidden');
+}
+
+function buttonEventComplete(btnEle, successText, resetText, resetDelay){
+  var btnText = btnEle.querySelector('.btn-text');
+  var btnSpinner = btnEle.querySelector('.btn-spinner');
+  if (btnSpinner) btnSpinner.classList.add('hidden');
+  btnEle.disabled = false;
+  if (btnText) btnText.innerText = successText || 'Done!';
+  else btnEle.textContent = successText || 'Done!';
+  btnEle.classList.add('btn-complete');
+  setTimeout(function(){
+    btnEle.classList.remove('btn-complete');
+    if (resetText) {
+      if (btnText) btnText.innerText = resetText;
+      else btnEle.textContent = resetText;
+    }
+  }, resetDelay || 2000);
 }
 
 function escapeHtml(str){
