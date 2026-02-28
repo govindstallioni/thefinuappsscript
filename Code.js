@@ -403,6 +403,7 @@ function isSetupCompleted(){
       const result = ui.alert('Cancel Subscription', 'Are you sure you want to cancel your subscription?', ui.ButtonSet.YES_NO);
       if (result == ui.Button.YES) {
         let response = confirmCancelUserSubscription();
+        Logger.log('cancelUserSubscription response: ' + JSON.stringify(response));
         if( response.success === true ){
           // Remove all triggers
           ScriptApp.getProjectTriggers().forEach(function(trigger) {

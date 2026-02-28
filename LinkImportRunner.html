@@ -179,10 +179,17 @@
                   google.script.run.withSuccessHandler(function(resp){
                     if(resp && resp.success === false){ appendLog('Finalize failed: ' + (resp.error || 'unknown')); setStatus('error', resp && resp.error); }
                     else {
-                      appendLog('Import completed.');
+                      appendLog('Import completed. Reloading sidebar...');
                       updateCounters();
                       setStatus('completed');
-                      // Show Close button for user to dismiss; clicking it will refresh the sidebar
+                      // Auto-reload sidebar and close modal
+                      google.script.run.withSuccessHandler(function(){
+                        try{ google.script.host.close(); }catch(e){}
+                      }).withFailureHandler(function(){
+                        // If sidebar reload fails, show Close button as fallback
+                        closeBtn.style.display='block';
+                      }).showSidebar();
+                      return;
                     }
                     closeBtn.style.display='block';
                   }).withFailureHandler(function(err){ appendLog('Finalize RPC failed: '+err); appendLog('Error'); setStatus('error', err && err.message); closeBtn.style.display='block'; }).finalizeLink(accountId);

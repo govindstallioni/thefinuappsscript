@@ -65,10 +65,15 @@
     setStatus('processing');
     google.script.run.withSuccessHandler(function(res){
       if(res && res.success){
-        appendLog('Unlink completed.');
+        appendLog('Unlink completed. Reloading sidebar...');
         setStatus('completed');
-        // Show Close button for user to dismiss; clicking it will refresh the sidebar
-        closeBtn.style.display = 'block';
+        // Auto-reload sidebar and close modal
+        google.script.run.withSuccessHandler(function(){
+          try{ google.script.host.close(); }catch(e){}
+        }).withFailureHandler(function(){
+          // If sidebar reload fails, show Close button as fallback
+          closeBtn.style.display = 'block';
+        }).showSidebar();
       } else {
         appendLog('Unlink failed: ' + (res && res.error));
         setStatus('error', res && (res.error || res.message));
