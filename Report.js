@@ -73,6 +73,16 @@ function startReportGenerationTask(){
 
 function generateFinancialReport(){
   try{
+    var sheetCheck = validateRequiredSheets(reportRequiredSheets());
+    if(!sheetCheck.valid){
+      var missingList = sheetCheck.missing.join(', ');
+      Logger.log('Report generation aborted — missing sheets: ' + missingList);
+      return {
+        success: false,
+        missingSheets: sheetCheck.missing,
+        message: 'The following required sheets are missing: ' + missingList + '. Please go to Settings and click "Reset Templates" to restore them before generating reports.'
+      };
+    }
     SpreadsheetApp.getUi().alert('Financial report generation has started. Do not change anything until the process completes.');
     regenerateAllReports();
     return {
@@ -80,7 +90,7 @@ function generateFinancialReport(){
       message: 'Financial report generated successfully.'
     };
   }catch(error){
-    SpreadsheetApp.getUi().alert('Please make sure that all the sheets are configured for report generate.');
+    SpreadsheetApp.getUi().alert('Something went wrong while generating the report. Please ensure all sheets are properly configured.');
     Logger.log("Error in generateFinancialReport: " + error.toString());
     return {
       success: false,

@@ -119,13 +119,37 @@
           </div>
           <h3 class="font-semibold text-gray-900">Subscription</h3>
         </div>
-        <p class="text-gray-600 leading-relaxed">Cancel your subscription to stop future billing. You will retain access until the end of your current billing cycle.</p>
+        <p class="text-gray-600 leading-relaxed">
+          <? if (cancelAtPeriodEnd) { ?>
+            Your subscription has been scheduled for cancellation.
+            <? if (currentPeriodEnd) { ?>
+              You will retain full access until <strong id="period-end-display"></strong>.
+              <script>
+                (function(){
+                  var d = new Date('<?= currentPeriodEnd ?>');
+                  if(!isNaN(d.getTime())){
+                    document.getElementById('period-end-display').textContent = d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                  }
+                })();
+              </script>
+            <? } ?>
+          <? } else { ?>
+            Cancel your subscription to stop future billing. You will retain access until the end of your current billing cycle.
+          <? } ?>
+        </p>
       </div>
       <div class="px-5 py-4 bg-gray-50 border-t border-gray-400">
-        <button id="cancel-subscription-btn" onclick="handleCancelSubscription(this)"
-          class="cursor-pointer w-full py-2 px-2 bg-red-700 text-white rounded-lg font-medium transition">
-          Cancel Subscription
-        </button>
+        <? if (cancelAtPeriodEnd) { ?>
+          <button id="cancel-subscription-btn" disabled
+            class="w-full py-2 px-2 bg-gray-400 text-white rounded-lg font-medium cursor-not-allowed">
+            Cancellation Scheduled
+          </button>
+        <? } else { ?>
+          <button id="cancel-subscription-btn" onclick="handleCancelSubscription(this)"
+            class="cursor-pointer w-full py-2 px-2 bg-red-700 text-white rounded-lg font-medium transition">
+            Cancel Subscription
+          </button>
+        <? } ?>
       </div>
     </div>
 

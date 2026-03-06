@@ -435,7 +435,18 @@ function generateFinancialReport(btnEle){
   btnEle.disabled = true;
   btnEle.textContent = "Generating...";
   google.script.run.withSuccessHandler(function(response){
-    buttonEventComplete(btnEle, 'Report Generated!', 'Generate Report', 2500);
+    if(response && response.success){
+      buttonEventComplete(btnEle, 'Report Generated!', 'Generate Report', 2500);
+      showMessage(response.message, 'success');
+    } else if(response && response.missingSheets){
+      btnEle.disabled = false;
+      btnEle.textContent = "Generate Report";
+      showMessage(response.message, 'error');
+    } else {
+      btnEle.disabled = false;
+      btnEle.textContent = "Generate Report";
+      showMessage((response && response.message) || 'Report generation failed.', 'error');
+    }
   }).withFailureHandler(function(error){
     showMessage((error.message || "Unknown error, Please reopen the app."), 'error');
     btnEle.disabled = false;
@@ -447,19 +458,24 @@ function toggleAutoSync(btnEle, enable){
   btnEle.disabled = true;
   btnEle.textContent = enable ? "Enabling..." : "Disabling...";
   google.script.run.withSuccessHandler(function(response){
-    var newLabel = enable ? "Disable Auto-Sync" : "Enable Auto-Sync";
-    // Flash success then update to new toggle state
-    buttonEventComplete(btnEle, enable ? 'Enabled!' : 'Disabled!', newLabel, 1500);
-    setTimeout(function(){
-      if( enable ){
-        btnEle.classList.remove("theme-bg-primary");
-        btnEle.classList.add("theme-bg-light");
-      }else{
-        btnEle.classList.remove("theme-bg-light");
-        btnEle.classList.add("theme-bg-primary");
-      }
-    }, 1600);
-    showMessage(response.message, 'success');
+    if(response && response.success){
+      var newLabel = enable ? "Disable Auto-Sync" : "Enable Auto-Sync";
+      buttonEventComplete(btnEle, enable ? 'Enabled!' : 'Disabled!', newLabel, 1500);
+      setTimeout(function(){
+        if( enable ){
+          btnEle.classList.remove("theme-bg-primary");
+          btnEle.classList.add("theme-bg-light");
+        }else{
+          btnEle.classList.remove("theme-bg-light");
+          btnEle.classList.add("theme-bg-primary");
+        }
+      }, 1600);
+      showMessage(response.message, 'success');
+    } else {
+      btnEle.disabled = false;
+      btnEle.textContent = enable ? "Enable Auto-Sync" : "Disable Auto-Sync";
+      showMessage((response && response.message) || 'Failed to update Auto-Sync.', 'error');
+    }
   }).withFailureHandler(function(error){
     showMessage((error.message || "Unknown error"), 'error');
     btnEle.disabled = false;
@@ -489,8 +505,20 @@ function handleResetTemplate(btn){
 function handleCancelSubscription(btn){
   if (btn) { btn.disabled = true; var orig = btn.innerText; btn.innerText = 'Cancelling...'; }
   google.script.run.withSuccessHandler(function(response){
-    if (btn) { btn.disabled = false; btn.innerText = orig; }
-    google.script.run.showSidebar();
+    if(response && response.success){
+      var msg = 'Your subscription has been scheduled for cancellation.';
+      if(response.periodEnd){
+        var endDate = new Date(response.periodEnd);
+        if(!isNaN(endDate.getTime())){
+          msg += ' You will retain full access until ' + endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) + '.';
+        }
+      }
+      if(btn){ btn.disabled = true; btn.innerText = 'Cancellation Scheduled'; btn.classList.remove('bg-red-700'); btn.classList.add('bg-gray-400'); }
+      showMessage(msg, 'success', 10000);
+    }else{
+      if(btn){ btn.disabled = false; btn.innerText = orig; }
+      showMessage((response && response.message) || 'Unable to cancel subscription.', 'error');
+    }
   }).withFailureHandler(function(error){
     showMessage((error.message || "Unknown error"), 'error');
     if (btn) { btn.disabled = false; btn.innerText = orig; }

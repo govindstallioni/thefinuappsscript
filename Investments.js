@@ -111,23 +111,20 @@ function sortingInvestmentSheet(){
 function clearInvestmentsData(account_id){
 
   const sheet = UserSpreadsheet.getSheetByName(USER_INVESTMENTS_SHEET);
-  const range = sheet.getDataRange();
-  const data = range.getValues();
-  const columnIndexToCheck = 12; 
+  const data = sheet.getDataRange().getValues();
+  const columnIndexToCheck = 12;
 
-  // Array to store the rows to clear
-  let rowsToClear = [];
-
-  // Loop through the data to identify rows to clear
-  for (let i = 0; i < data.length; i++) {
+  // Collect rows to delete (skip header row 0)
+  var rowsToDelete = [];
+  for (var i = 1; i < data.length; i++) {
     if (data[i][columnIndexToCheck - 1] === account_id) {
-      rowsToClear.push(i + 1); // Adjust for 1-based indexing
+      rowsToDelete.push(i + 1);
     }
   }
 
-  // Clear the content of the identified rows in bulk
-  if (rowsToClear.length > 0) {
-    sheet.getRangeList(rowsToClear.map(row => `A${row}:L${row}`)).clearContent();
+  // Delete from bottom to top so indices stay valid
+  for (var r = rowsToDelete.length - 1; r >= 0; r--) {
+    sheet.deleteRow(rowsToDelete[r]);
   }
 
   sortingInvestmentSheet();

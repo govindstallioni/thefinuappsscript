@@ -98,7 +98,7 @@ function getPlaidTransactionSyncData( account_id, new_cursor = null ){
       cursor: new_cursor ? new_cursor : '',
       count: 500,
       options: {
-        account_id : account_id
+        account_ids : [ account_id ]
       }
     };
     response = plaidRequest(plaidTransactionsEndpoint, payload);

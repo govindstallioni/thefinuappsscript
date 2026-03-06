@@ -219,16 +219,14 @@ function updateAppAccountDetailById( accountId, data ){
 }
 
 /**
- * Cancels the user's subscription by notifying the external API.
- * The API will receive the user's email in the payload.
+ * Schedules the user's subscription for cancellation at the end of the current billing period.
+ * The subscription stays active until the period ends.
  */
 function confirmCancelUserSubscription(){
   try{
     const apiUrl = API_ENDPOINT + 'api/payment/unsubscribe';
     const payload = {
       email: UserEmail,
-      //spreadsheetId: SpreadsheetApp.getActiveSpreadsheet().getId(),
-      //timestamp: new Date().toISOString()
     };
 
     const options = {
@@ -241,11 +239,6 @@ function confirmCancelUserSubscription(){
 
     const response = UrlFetchApp.fetch(apiUrl, options);
     const result = JSON.parse(response.getContentText());
-
-    // If API indicates success, clear local subscription progress
-    if (response.getResponseCode() === 200) {
-      try{ clearSubscriptionProgress(); }catch(e){}
-    }
 
     return {
       success: response.getResponseCode() === 200,

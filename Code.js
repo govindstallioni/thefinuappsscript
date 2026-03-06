@@ -110,6 +110,70 @@ function handleAddonEdit(e){
 }
 
 
+/**
+ * Validates that required sheets exist in the user's spreadsheet.
+ * @param {string[]} sheetNames - Array of sheet name constants to check.
+ * @returns {{ valid: boolean, missing: string[] }}
+ */
+function validateRequiredSheets(sheetNames){
+  var spreadsheet = UserSpreadsheet;
+  var missing = [];
+  sheetNames.forEach(function(name){
+    if(!spreadsheet.getSheetByName(name)){
+      missing.push(name);
+    }
+  });
+  return { valid: missing.length === 0, missing: missing };
+}
+
+/**
+ * Returns sheets required for data sync operations (auto-sync & link import).
+ */
+function syncRequiredSheets(){
+  return [
+    USER_TRANSACTIONS_SHEET,
+    USER_INVESTMENTS_SHEET,
+    USER_BALANCE_HISTORY_SHEET,
+    USER_ACCOUNTS_SHEET,
+    USER_DEFINITION_SHEET
+  ];
+}
+
+/**
+ * Returns sheets required for report generation.
+ */
+function reportRequiredSheets(){
+  return [
+    USER_TRANSACTIONS_SHEET,
+    USER_BALANCE_HISTORY_SHEET,
+    USER_ACCOUNTS_SHEET,
+    USER_CATEGORIES_SHEET,
+    USER_DEFINITION_SHEET,
+    USER_NET_WORTH_SHEET,
+    USER_JOINT_NET_WORTH_SHEET,
+    USER_MONTHLY_BUDGET_SHEET,
+    USER_JOINT_MONTHLY_BUDGET_SHEET,
+    USER_YEARLY_BUDGET_SHEET,
+    USER_JOINT_YEARLY_BUDGET_SHEET
+  ];
+}
+
+/**
+ * Sends an email notification to the current user.
+ * @param {string} subject
+ * @param {string} body - Plain text body.
+ */
+function sendUserNotification(subject, body){
+  try{
+    var email = Session.getEffectiveUser().getEmail();
+    if(email){
+      MailApp.sendEmail(email, subject, body);
+    }
+  }catch(e){
+    Logger.log('sendUserNotification error: ' + e.toString());
+  }
+}
+
 function appBaseTemplates(){
   return [
     USER_START_HERE_SHEET,
@@ -163,7 +227,8 @@ function showSidebar() {
       showSetupWizardSidebar();
     }
   }else{
-    try{ clearSubscriptionProgress(); }catch(e){}
+    // Subscription has expired — clean up everything
+    try{ cleanupExpiredSubscription(); }catch(e){}
     showSetupWizardSidebar();
   }
 }
@@ -270,6 +335,21 @@ function showSetupWizardTemplate(){
 function showUserDashboardTemplate(){
   const template = HtmlService.createTemplateFromFile('UserDashboard');
   template.isAutoSyncEnabled = PropertiesService.getUserProperties().getProperty("AUTO_SYNC_STATUS") === 'true' ? true : false;
+  Logger.log('Auto-Sync status for dashboard: ' + PropertiesService.getUserProperties().getProperty("AUTO_SYNC_STATUS") );
+
+  // Pass subscription cancellation state to template
+  template.cancelAtPeriodEnd = false;
+  template.currentPeriodEnd = '';
+  try {
+    var session = validateUserSession();
+    if(session.success && session.result && session.result.data){
+      template.cancelAtPeriodEnd = session.result.data.cancelAtPeriodEnd === true;
+      template.currentPeriodEnd = session.result.data.currentPeriodEnd || '';
+    }
+  } catch(e) {
+    Logger.log('showUserDashboardTemplate subscription check error: ' + e.toString());
+  }
+
   return template.evaluate().getContent();
 }
 
@@ -394,31 +474,52 @@ function isSetupCompleted(){
 }
 
   /**
-   * Shows a Google Sheets UI confirmation dialog for cancelling subscription.
-   * Returns true if the user confirmed (YES), false otherwise.
+   * Shows a confirmation dialog and schedules subscription cancellation at end of billing period.
+   * The user retains full access until the period ends. Cleanup happens when subscription actually expires.
    */
   function cancelUserSubscription(){
     try{
       const ui = SpreadsheetApp.getUi();
-      const result = ui.alert('Cancel Subscription', 'Are you sure you want to cancel your subscription?', ui.ButtonSet.YES_NO);
+      const result = ui.alert('Cancel Subscription', 'Are you sure you want to cancel? Your subscription will remain active until the end of your current billing period.', ui.ButtonSet.YES_NO);
       if (result == ui.Button.YES) {
         let response = confirmCancelUserSubscription();
         Logger.log('cancelUserSubscription response: ' + JSON.stringify(response));
         if( response.success === true ){
-          // Remove all triggers
-          ScriptApp.getProjectTriggers().forEach(function(trigger) {
-            ScriptApp.deleteTrigger(trigger);
-          });
-          deleteAllSheetsAndRecreate();
-          clearAllUserProperties();
+          // Re-validate user to get fresh subscription state from backend
           clearAppSettingsCache();
-          return true;
+          var userSession = validateUserSession();
+          var endDate = '';
+          var cancelAtPeriodEnd = false;
+          if(userSession.success && userSession.result && userSession.result.data){
+            endDate = userSession.result.data.currentPeriodEnd || '';
+            cancelAtPeriodEnd = userSession.result.data.cancelAtPeriodEnd === true;
+          }
+          return { success: true, periodEnd: endDate, cancelAtPeriodEnd: cancelAtPeriodEnd };
         }
-        return false;
+        return { success: false, message: 'Unable to cancel subscription. Please try again.' };
       }
+      return { success: false, message: 'Cancellation was not confirmed.' };
     }catch(e){
       Logger.log('cancelUserSubscription error: ' + e.toString());
-      return false;
+      return { success: false, message: e.toString() };
+    }
+  }
+
+  /**
+   * Cleans up user data when subscription has fully expired.
+   * Called from showSidebar when validateUserSession returns isSubscribed=false.
+   */
+  function cleanupExpiredSubscription(){
+    try{
+      ScriptApp.getProjectTriggers().forEach(function(trigger) {
+        ScriptApp.deleteTrigger(trigger);
+      });
+      deleteAllSheetsAndRecreate();
+      clearAllUserProperties();
+      clearAppSettingsCache();
+      clearSubscriptionProgress();
+    }catch(e){
+      Logger.log('cleanupExpiredSubscription error: ' + e.toString());
     }
   }
 
@@ -642,7 +743,23 @@ function runThefinUPlaidAutoSync(){
     if( isSyncEnabled !== 'true' ){
       return false;
     }
+
+    // Validate required sheets before syncing
+    var sheetCheck = validateRequiredSheets(syncRequiredSheets());
+    if(!sheetCheck.valid){
+      var missingList = sheetCheck.missing.join(', ');
+      Logger.log('Auto-Sync aborted — missing sheets: ' + missingList);
+      sendUserNotification(
+        'TheFinU Auto-Sync Failed — Missing Sheets',
+        'Hi,\n\nYour daily auto-sync could not run because the following required sheets are missing from your spreadsheet:\n\n' +
+        missingList +
+        '\n\nTo fix this, open TheFinU add-on sidebar, go to Settings, and click "Reset Templates" to restore the missing sheets.\n\nOnce restored, auto-sync will resume on the next scheduled run.\n\nBest,\nTheFinU'
+      );
+      return false;
+    }
+
     const response = getAppPlaidConnectedAccounts();
+    var syncedCount = 0;
     if( response.success === true ){
       let accounts = response.result;
       if( accounts.length > 0 ){
@@ -661,15 +778,31 @@ function runThefinUPlaidAutoSync(){
                 is_update: false
               }
             );
+            syncedCount++;
           }
         });
         populateNetWorth();
         populateJointNetWorth();
       }
     }
+
+    sendUserNotification(
+      'TheFinU Auto-Sync Completed',
+      'Hi,\n\nYour daily auto-sync completed successfully.\n\n' +
+      'Accounts synced: ' + syncedCount + '\n' +
+      'Date: ' + new Date().toLocaleString() +
+      '\n\nBest,\nTheFinU'
+    );
+
     return true;
   }catch(error){
-    Logger.log(`Error while runThefinUPlaidAutoSync: ${error.message}`);
+    Logger.log('Error while runThefinUPlaidAutoSync: ' + error.message);
+    sendUserNotification(
+      'TheFinU Auto-Sync Failed',
+      'Hi,\n\nYour daily auto-sync encountered an error:\n\n' +
+      error.message +
+      '\n\nPlease open TheFinU add-on sidebar and try a manual sync. If the problem persists, go to Settings and click "Reset Templates".\n\nBest,\nTheFinU'
+    );
     return false;
   }
 }
@@ -677,7 +810,17 @@ function runThefinUPlaidAutoSync(){
 /**
  * Backend functions called from the UI
  */
+function validateSheetsForSync(){
+  var sheetCheck = validateRequiredSheets(syncRequiredSheets());
+  return sheetCheck;
+}
+
 function linkNewAccount() {
+  var sheetCheck = validateRequiredSheets(syncRequiredSheets());
+  if(!sheetCheck.valid){
+    SpreadsheetApp.getUi().alert('Cannot link account — the following required sheets are missing: ' + sheetCheck.missing.join(', ') + '.\n\nPlease go to Settings and click "Reset Templates" to restore them.');
+    return;
+  }
   const html = HtmlService.createHtmlOutputFromFile('ConnectPlaidAccount').setWidth(450).setHeight(600);
   SpreadsheetApp.getUi().showModalDialog(html, "Connect Plaid Account");
 }
@@ -783,6 +926,11 @@ function finalizeLink(accountId){
   const props = PropertiesService.getUserProperties();
   try{
     if(!accountId) return { success: false, message: 'Missing accountId' };
+
+    var sheetCheck = validateRequiredSheets(syncRequiredSheets());
+    if(!sheetCheck.valid){
+      return { success: false, message: 'Missing required sheets: ' + sheetCheck.missing.join(', ') + '. Please go to Settings and click "Reset Templates" to restore them.' };
+    }
 
     updateAccountBalanceHistory(accountId);
     linkAccountsSheetData(accountId);
@@ -1477,6 +1625,9 @@ function insertTransactionBatchSafe(txObjects){
   lock.waitLock(30000);
   try{
     const sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+    if(!sheet){
+      return { success: false, error: 'The "' + USER_TRANSACTIONS_SHEET + '" sheet is missing. Please go to Settings and click "Reset Templates" to restore it.' };
+    }
     const headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
     const headerMap = buildHeaderIndexMapFromArray(headers);
     let txnIdColIdx = findHeaderIndexByKeywords(headerMap, ['transaction','id']);
@@ -1571,6 +1722,9 @@ function insertInvestmentBatchSafe(invObjects){
   lock.waitLock(30000);
   try{
     const sheet = UserSpreadsheet.getSheetByName(USER_INVESTMENTS_SHEET);
+    if(!sheet){
+      return { success: false, error: 'The "' + USER_INVESTMENTS_SHEET + '" sheet is missing. Please go to Settings and click "Reset Templates" to restore it.' };
+    }
     const headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
     const headerMap = buildHeaderIndexMapFromArray(headers);
     const lastCol = headers.length;
