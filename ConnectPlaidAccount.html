@@ -74,6 +74,34 @@
       if(type !== 'error') setTimeout(function(){ banner.innerHTML=''; }, duration || 5000);
     }
 
+    function resetToInitialUI(){
+      var container = document.getElementById('plaid-content');
+      container.innerHTML = '';
+
+      var actionsDiv = document.createElement('div');
+      actionsDiv.id = 'plaid-actions';
+      actionsDiv.innerHTML =
+        '<div class="text-center">' +
+          '<div class="result-icon" style="background:#e0f2fe;">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4z"/>' +
+            '</svg>' +
+          '</div>' +
+          '<h2 class="text-lg font-bold mb-1">Link Your Account</h2>' +
+          '<p class="text-sm text-slate-500 mb-4">Securely connect your bank through Plaid to sync your financial data.</p>' +
+          '<button id="btnConnectPlaid" class="cursor-pointer w-full py-2.5 theme-bg-primary text-white rounded-lg font-medium">' +
+            '<span style="display:flex;align-items:center;justify-content:center;gap:8px;">' +
+              '<span id="btnConnectText">Connect with Plaid</span>' +
+              '<span id="btnConnectSpinner" class="btn-spinner-inline"></span>' +
+            '</span>' +
+          '</button>' +
+        '</div>';
+      container.appendChild(actionsDiv);
+
+      document.getElementById('btnConnectPlaid').addEventListener('click', handleConnectClick);
+      document.getElementById('statusBanner').innerHTML = '';
+    }
+
     function resetConnectButton(){
       var btn = document.getElementById('btnConnectPlaid');
       var textEl = document.getElementById('btnConnectText');
@@ -149,7 +177,7 @@
       var connectMoreBtn = document.createElement('button');
       connectMoreBtn.className = 'cursor-pointer w-full py-2.5 bg-slate-100 text-slate-700 rounded-lg font-medium border border-slate-200';
       connectMoreBtn.textContent = 'Connect Another Account';
-      connectMoreBtn.addEventListener('click', function(){ location.reload(); });
+      connectMoreBtn.addEventListener('click', function(){ resetToInitialUI(); });
 
       actions.appendChild(openBtn);
       actions.appendChild(connectMoreBtn);
@@ -185,7 +213,7 @@
       var retryBtn = document.createElement('button');
       retryBtn.className = 'cursor-pointer w-full py-2.5 theme-bg-primary text-white rounded-lg font-medium';
       retryBtn.textContent = 'Try Again';
-      retryBtn.addEventListener('click', function(){ location.reload(); });
+      retryBtn.addEventListener('click', function(){ resetToInitialUI(); });
 
       var openBtn = document.createElement('button');
       openBtn.className = 'cursor-pointer w-full py-2.5 bg-slate-100 text-slate-700 rounded-lg font-medium border border-slate-200';
@@ -205,29 +233,31 @@
       container.appendChild(actions);
     }
 
-    document.addEventListener('DOMContentLoaded', function(){
-      document.getElementById('btnConnectPlaid').addEventListener('click', function(){
-        var btn = this;
-        var textEl = document.getElementById('btnConnectText');
-        var spinnerEl = document.getElementById('btnConnectSpinner');
-        btn.disabled = true;
-        textEl.textContent = 'Connecting...';
-        spinnerEl.classList.add('visible');
+    function handleConnectClick(){
+      var btn = document.getElementById('btnConnectPlaid');
+      var textEl = document.getElementById('btnConnectText');
+      var spinnerEl = document.getElementById('btnConnectSpinner');
+      btn.disabled = true;
+      textEl.textContent = 'Connecting...';
+      spinnerEl.classList.add('visible');
 
-        google.script.run.withSuccessHandler(function(resp){
-          if(resp && resp.link_token){
-            showloader('Opening Plaid...');
-            resetConnectButton();
-            connectPlaidModalUI(resp.link_token);
-          } else {
-            resetConnectButton();
-            showMessage('Unable to start Plaid.','error');
-          }
-        }).withFailureHandler(function(err){
+      google.script.run.withSuccessHandler(function(resp){
+        if(resp && resp.link_token){
+          showloader('Opening Plaid...');
           resetConnectButton();
-          showMessage('Cannot start Plaid: ' + (err.message||''),'error');
-        }).generatePlaidTokenLink();
-      });
+          connectPlaidModalUI(resp.link_token);
+        } else {
+          resetConnectButton();
+          showMessage('Unable to start Plaid.','error');
+        }
+      }).withFailureHandler(function(err){
+        resetConnectButton();
+        showMessage('Cannot start Plaid: ' + (err.message||''),'error');
+      }).generatePlaidTokenLink();
+    }
+
+    document.addEventListener('DOMContentLoaded', function(){
+      document.getElementById('btnConnectPlaid').addEventListener('click', handleConnectClick);
     });
   </script>
 </body>

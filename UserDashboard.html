@@ -45,7 +45,7 @@
       <button onclick="linkNewAccount(this)"
       class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium border border-gray-400 transition">+ Link Plaid Account</button>
       <button onclick="addNewBalanceHistory(this)"
-      class="cursor-pointer w-full ml-2 py-2 px-2 theme-bg-semi-light rounded-lg font-medium border border-gray-400 transition">+ Add Balance History</button>
+      class="cursor-pointer w-full ml-2 py-2 px-2 theme-bg-semi-light rounded-lg font-medium border border-gray-400 transition">+ Add Manual Entries</button>
     </div>
 
     <!-- Accounts list -->
@@ -65,52 +65,112 @@
   </div>
 
   <div id="tab-settings" class="py-4 px-0 tab-content hidden">
-    <!-- Your settings content here -->
-    <? if ( isAutoSyncEnabled ) { ?>
-      <button onclick="toggleAutoSync(this, false)"
-      class="cursor-pointer w-full py-2 px-2 theme-bg-light text-white rounded-lg font-medium transition">Disable Auto-Sync</button>
-    <? } else { ?>
-      <button onclick="toggleAutoSync(this, true)"
-      class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Enable Auto-Sync</button>
-    <? } ?>
-    <div class="mt-4">
-      <button id="cancel-subscription-btn" onclick="handleCancelSubscription(this)"
-        class="cursor-pointer w-full py-2 px-2 bg-red-700 text-white rounded-lg font-medium transition">
-        Cancel Subscription
-      </button>
+    <!-- Auto-Sync Card -->
+    <div class="bg-white rounded-xl border border-gray-400 overflow-hidden mb-2">
+      <div class="p-5">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          </div>
+          <h3 class="font-semibold text-gray-900">Auto-Sync</h3>
+        </div>
+        <? if ( isAutoSyncEnabled ) { ?>
+          <p class="text-gray-600 leading-relaxed">Auto Sync is currently enabled. Your data will be synchronized automatically.</p>
+        <? } else { ?>
+          <p class="text-gray-600 leading-relaxed">Enable Auto Sync to keep your financial data up-to-date automatically without manual intervention.</p>
+        <? } ?>
+      </div>
+      <div class="px-5 py-4 bg-gray-50 border-t border-gray-400">
+        <? if ( isAutoSyncEnabled ) { ?>
+          <button onclick="toggleAutoSync(this, false)"
+            class="cursor-pointer w-full py-2 px-2 theme-bg-light text-white rounded-lg font-medium transition">Disable Auto-Sync</button>
+        <? } else { ?>
+          <button onclick="toggleAutoSync(this, true)"
+            class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Enable Auto-Sync</button>
+        <? } ?>
+      </div>
     </div>
+
+     <!-- Reset Templates Card -->
+    <div class="bg-white rounded-xl border border-gray-400 overflow-hidden mb-2">
+      <div class="p-5">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          </div>
+          <h3 class="font-semibold text-gray-900">Reset Templates</h3>
+        </div>
+        <p class="text-gray-600 leading-relaxed">Restore any missing templates to their default state.</p>
+      </div>
+      <div class="px-5 py-4 bg-gray-50 border-t border-gray-400">
+        <button id="reset-template-btn" onclick="handleResetTemplate(this)"
+          class="cursor-pointer w-full py-2 px-2 bg-green-700 text-white rounded-lg font-medium transition">
+          Reset Templates
+        </button>
+      </div>
+    </div>
+
+    <!-- Cancel Subscription Card -->
+    <div class="bg-white rounded-xl border border-gray-400 overflow-hidden mb-2">
+      <div class="p-5">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          </div>
+          <h3 class="font-semibold text-gray-900">Subscription</h3>
+        </div>
+        <p class="text-gray-600 leading-relaxed">Cancel your subscription to stop future billing. You will retain access until the end of your current billing cycle.</p>
+      </div>
+      <div class="px-5 py-4 bg-gray-50 border-t border-gray-400">
+        <button id="cancel-subscription-btn" onclick="handleCancelSubscription(this)"
+          class="cursor-pointer w-full py-2 px-2 bg-red-700 text-white rounded-lg font-medium transition">
+          Cancel Subscription
+        </button>
+      </div>
+    </div>
+
   </div>
 
   <div id="tab-support" class="py-4 px-0 tab-content hidden">
     <!-- FAQ Card -->
     <div class="bg-white rounded-xl border border-gray-400 overflow-hidden mb-2">
       <div class="p-5">
-        <h3 class="font-semibold text-gray-900 mb-2">FAQ</h3>
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <h3 class="font-semibold text-gray-900">FAQ</h3>
+        </div>
         <p class="text-gray-600 leading-relaxed">
-          FAQs within ThefinU provide quick and clear answers to common questions, helping users navigate the platform and better understand its features and services.
+          Quick and clear answers to common questions about navigating the platform and understanding its features.
         </p>
       </div>
       <div class="px-5 py-4 bg-gray-50 border-t border-gray-400 text-center">
-        <a href="http://www.thefinu.com/faqs" 
-          target="_blank" 
+        <a href="http://www.thefinu.com/faqs"
+          target="_blank"
           rel="noopener noreferrer"
-          class="inline-block px-6 py-2 theme-bg-primary text-white font-medium rounded-lg  transition">View FAQs</a>
+          class="inline-block px-6 py-2 theme-bg-primary text-white font-medium rounded-lg transition">View FAQs</a>
       </div>
     </div>
 
     <!-- Suggest a Feature Card -->
     <div class="bg-white rounded-xl border border-gray-400 overflow-hidden mb-2">
       <div class="p-5">
-        <h3 class="font-semibold text-gray-900 mb-2">Suggest a Feature</h3>
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-9 h-9 rounded-lg bg-purple-50 flex items-center justify-center flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <h3 class="font-semibold text-gray-900">Suggest a Feature</h3>
+        </div>
         <p class="text-gray-600 leading-relaxed">
-          The 'Suggest a Feature' option in ThefinU allows users to share ideas and recommendations for new features, helping us improve the platform based on your feedback.
+          Share your ideas and recommendations for new features to help us improve the platform.
         </p>
       </div>
       <div class="px-5 py-4 bg-gray-50 border-t border-gray-400 text-center">
-        <a href="http://www.thefinu.com/contactus-requestafeature" 
-          target="_blank" 
+        <a href="http://www.thefinu.com/contactus-requestafeature"
+          target="_blank"
           rel="noopener noreferrer"
-          class="inline-block px-6 py-2 theme-bg-primary text-white font-medium rounded-lg  transition">
+          class="inline-block px-6 py-2 theme-bg-primary text-white font-medium rounded-lg transition">
           Suggest a Feature
         </a>
       </div>
@@ -119,26 +179,42 @@
     <!-- Contact Us Card -->
     <div class="bg-white rounded-xl border border-gray-400 overflow-hidden mb-2">
       <div class="p-5">
-        <h3 class="font-semibold text-gray-900 mb-2">Contact Us</h3>
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          </div>
+          <h3 class="font-semibold text-gray-900">Contact Us</h3>
+        </div>
         <p class="text-gray-600 leading-relaxed">
-          ThefinU enables users to easily reach out for support, ask questions, or provide feedback directly to our team.
+          Reach out for support, ask questions, or provide feedback directly to our team.
         </p>
       </div>
       <div class="px-5 py-4 bg-gray-50 border-t border-gray-400 text-center">
-        <a href="http://www.thefinu.com/contactus-requestafeature" 
-          target="_blank" 
+        <a href="http://www.thefinu.com/contactus-requestafeature"
+          target="_blank"
           rel="noopener noreferrer"
-          class="inline-block px-6 py-2 theme-bg-primary text-white font-medium rounded-lg  transition">
+          class="inline-block px-6 py-2 theme-bg-primary text-white font-medium rounded-lg transition">
           Contact Us
         </a>
       </div>
     </div>
   </div>
   <div id="tab-reports" class="py-4 px-0 tab-content hidden">
-    <!-- Your reports content here -->
-    <p class="text-gray-600">Before you populate report, please make sure that accounts are connected with Owner, Group and Asset/Liability. Otherwise data won't generate full report</p>
-    <div class="mt-4">
-      <button onclick="generateFinancialReport(this)"
-      class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Generate Report</button>
+    <!-- Generate Report Card -->
+    <div class="bg-white rounded-xl border border-gray-400 overflow-hidden mb-2">
+      <div class="p-5">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <h3 class="font-semibold text-gray-900">Generate Report</h3>
+        </div>
+        <p class="text-gray-600 leading-relaxed">Before generating, make sure accounts are connected with Owner, Group and Asset/Liability. Otherwise the report may be incomplete.</p>
+      </div>
+      <div class="px-5 py-4 bg-gray-50 border-t border-gray-400">
+        <button onclick="generateFinancialReport(this)"
+          class="cursor-pointer w-full py-2 px-2 theme-bg-primary text-white rounded-lg font-medium transition">Generate Report</button>
+      </div>
+    </div>
   </div>
 </div>

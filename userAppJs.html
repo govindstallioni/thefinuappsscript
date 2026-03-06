@@ -467,6 +467,25 @@ function toggleAutoSync(btnEle, enable){
   }).toggleAutoSyncSetting(enable);
 }
 
+function handleResetTemplate(btn){
+  btn.disabled = true;
+  btn.textContent = 'Installing...';
+  google.script.run.withSuccessHandler(function(response){
+    if(response && response.success){
+      buttonEventComplete(btn, 'Templates Restored!', 'Reset Templates', 2500);
+      showMessage(response.message || 'Missing templates have been restored successfully.', 'success');
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Reset Templates';
+      showMessage((response && response.message) || 'Failed to reset templates.', 'error');
+    }
+  }).withFailureHandler(function(error){
+    btn.disabled = false;
+    btn.textContent = 'Reset Templates';
+    showMessage((error.message || 'Something went wrong. Please try again.'), 'error');
+  }).installTemplateInitialSetup();
+}
+
 function handleCancelSubscription(btn){
   if (btn) { btn.disabled = true; var orig = btn.innerText; btn.innerText = 'Cancelling...'; }
   google.script.run.withSuccessHandler(function(response){

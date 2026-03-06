@@ -81,7 +81,7 @@ function handleAddonEdit(e){
   // Get row data
    const rowData = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
 
-  if( sheet.getName() === USER_MONTHLY_BUDGET_SHEET && editCell === 'C2' ){
+  /*if( sheet.getName() === USER_MONTHLY_BUDGET_SHEET && editCell === 'C2' ){
     startGenerationOfMonthlyBudget();
   }
   if( sheet.getName() === USER_YEARLY_BUDGET_SHEET && editCell === 'E2' ){
@@ -92,7 +92,7 @@ function handleAddonEdit(e){
   }
   if( sheet.getName() === USER_JOINT_YEARLY_BUDGET_SHEET && editCell === 'D2' ){
     startGenerationOfJointYearlyBudget();
-  }
+  }*/
   if( sheet.getName() === USER_ACCOUNTS_SHEET ){
     if( column === 6 || column === 8 || column === 10 || column === 11 ){
       populateNetWorth();
@@ -468,10 +468,22 @@ function installTemplateInitialSetup(){
         }
       });
 
+      // Apply base formulas first (Definition + Transactions) — budget sheets depend on Definition
+      let baseFormulaSheets = appBaseFormulaTemplates();
+      baseFormulaSheets.forEach(function(sheetName){
+        reApplyFormulaToSpreadsheet(sheetName);
+      });
+      SpreadsheetApp.flush();
+
+      // Apply budget sheet formulas (depend on Definition being ready)
       let formulaSheets = appBudgetFormulaTemplates();
       formulaSheets.forEach(function(sheetName){
         reApplyFormulaToSpreadsheet(sheetName);
       });
+
+      // Re-apply Definition formulas so cross-references to budget sheets resolve
+      reApplyFormulaToSpreadsheet(USER_DEFINITION_SHEET);
+
       // Active Start Here sheet
       SpreadsheetApp.getActive().getSheetByName(USER_START_HERE_SHEET).activate();
       SpreadsheetApp.flush();
