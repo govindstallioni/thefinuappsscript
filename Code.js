@@ -585,6 +585,8 @@ function installTemplateInitialSetup(){
       // Re-apply Definition formulas so cross-references to budget sheets resolve
       reApplyFormulaToSpreadsheet(USER_DEFINITION_SHEET);
 
+      populateNetWorth();
+      populateJointNetWorth();
       // Active Start Here sheet
       SpreadsheetApp.getActive().getSheetByName(USER_START_HERE_SHEET).activate();
       SpreadsheetApp.flush();
@@ -745,7 +747,7 @@ function runThefinUPlaidAutoSync(){
     }
 
     // Validate required sheets before syncing
-    var sheetCheck = validateRequiredSheets(syncRequiredSheets());
+    var sheetCheck = validateRequiredSheets(appBaseTemplates());
     if(!sheetCheck.valid){
       var missingList = sheetCheck.missing.join(', ');
       Logger.log('Auto-Sync aborted — missing sheets: ' + missingList);
@@ -811,15 +813,28 @@ function runThefinUPlaidAutoSync(){
  * Backend functions called from the UI
  */
 function validateSheetsForSync(){
-  var sheetCheck = validateRequiredSheets(syncRequiredSheets());
+  var sheetCheck = validateRequiredSheets(appBaseTemplates());
   return sheetCheck;
 }
 
 function linkNewAccount() {
-  var sheetCheck = validateRequiredSheets(syncRequiredSheets());
+  var sheetCheck = validateRequiredSheets(appBaseTemplates());
   if(!sheetCheck.valid){
-    SpreadsheetApp.getUi().alert('Cannot link account — the following required sheets are missing: ' + sheetCheck.missing.join(', ') + '.\n\nPlease go to Settings and click "Reset Templates" to restore them.');
-    return;
+    Logger.log('Missing sheets detected before linking: ' + sheetCheck.missing.join(', ') + '. Auto-installing...');
+    var installResult = installTemplateInitialSetup();
+    if(!installResult.success){
+      SpreadsheetApp.getUi().alert('Failed to install missing sheets. Please try again or go to Settings and click "Reset Templates".');
+      return;
+    }
+    var recheck = validateRequiredSheets(appBaseTemplates());
+    if(!recheck.valid){
+      SpreadsheetApp.getUi().alert('Cannot link account — the following required sheets are still missing: ' + recheck.missing.join(', ') + '.\n\nPlease go to Settings and click "Reset Templates" to restore them.');
+      return;
+    }
+    // Populate net worth reports with any existing data on freshly installed sheets
+    populateNetWorth();
+    populateJointNetWorth();
+    SpreadsheetApp.flush();
   }
   const html = HtmlService.createHtmlOutputFromFile('ConnectPlaidAccount').setWidth(450).setHeight(600);
   SpreadsheetApp.getUi().showModalDialog(html, "Connect Plaid Account");
@@ -902,6 +917,20 @@ function confirmLinkAccountToTemplate( accountId ){
 function confirmLinkAccountToTemplateConfirmed(accountId){
   const userProperties = PropertiesService.getUserProperties();
   try{
+    // Install missing sheets before opening the import runner
+    var sheetCheck = validateRequiredSheets(appBaseTemplates());
+    if(!sheetCheck.valid){
+      Logger.log('Missing sheets before import: ' + sheetCheck.missing.join(', ') + '. Auto-installing...');
+      var installResult = installTemplateInitialSetup();
+      if(!installResult.success){
+        return { success: false, error: 'Failed to install missing sheets. Please try again or go to Settings and click "Reset Templates".' };
+      }
+      // Populate net worth reports with any existing data on freshly installed sheets
+      populateNetWorth();
+      populateJointNetWorth();
+      SpreadsheetApp.flush();
+    }
+
     userProperties.setProperty('TASK_STATUS','READY');
     userProperties.setProperty('LINK_ACCOUNT_ID', accountId);
     // Open the import runner modal
@@ -927,9 +956,17 @@ function finalizeLink(accountId){
   try{
     if(!accountId) return { success: false, message: 'Missing accountId' };
 
-    var sheetCheck = validateRequiredSheets(syncRequiredSheets());
+    var sheetCheck = validateRequiredSheets(appBaseTemplates());
     if(!sheetCheck.valid){
-      return { success: false, message: 'Missing required sheets: ' + sheetCheck.missing.join(', ') + '. Please go to Settings and click "Reset Templates" to restore them.' };
+      Logger.log('Missing sheets detected during finalizeLink: ' + sheetCheck.missing.join(', ') + '. Auto-installing...');
+      var installResult = installTemplateInitialSetup();
+      if(!installResult.success){
+        return { success: false, message: 'Failed to install missing sheets. Please try again or go to Settings and click "Reset Templates".' };
+      }
+      var recheck = validateRequiredSheets(appBaseTemplates());
+      if(!recheck.valid){
+        return { success: false, message: 'Missing required sheets: ' + recheck.missing.join(', ') + '. Please go to Settings and click "Reset Templates" to restore them.' };
+      }
     }
 
     updateAccountBalanceHistory(accountId);

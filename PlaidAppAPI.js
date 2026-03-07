@@ -96,12 +96,15 @@ function getPlaidTransactionSyncData( account_id, new_cursor = null ){
       secret: appSettingsData.result.plaidSecretKey,
       access_token: accountData.result.access_token,
       cursor: new_cursor ? new_cursor : '',
-      count: 500,
-      options: {
-        account_ids : [ account_id ]
-      }
+      count: 500
     };
     response = plaidRequest(plaidTransactionsEndpoint, payload);
+    // /transactions/sync returns all accounts for the item — filter to requested account
+    if(response && !response.error){
+      if(response.added) response.added = response.added.filter(function(t){ return t.account_id === account_id; });
+      if(response.modified) response.modified = response.modified.filter(function(t){ return t.account_id === account_id; });
+      if(response.removed) response.removed = response.removed.filter(function(t){ return t.account_id === account_id; });
+    }
   }
   return response;
 }
