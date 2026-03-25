@@ -14,13 +14,14 @@
     "https://script.googleapis.com/",
     "https://production.plaid.com/",
     "https://sandbox.plaid.com/",
-    "https://thefinu.stallioni.com/",
+    "https://thefinuportal-backend-1014598876589.europe-west1.run.app/",
+    "https://thefinuportal-1014598876589.us-west2.run.app/",
     "https://api.stripe.com/v1/checkout/sessions"
   ],
   "addOns": {
     "common": {
       "name": "TheFinU Addon",
-      "logoUrl": "https://thefinu.stallioni.com/logo.png",
+      "logoUrl": "https://thefinuportal-1014598876589.us-west2.run.app/logo.png",
       "layoutProperties": {
         "primaryColor": "#37484C"
       }

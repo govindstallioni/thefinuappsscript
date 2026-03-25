@@ -217,7 +217,7 @@ function appBaseFormulaTemplates(){
  */
 function showSidebar() {
   let userValidation = validateUserSession();
-  if( userValidation.result && userValidation.result.data.isSubscribed === true ){
+  if( userValidation.result && userValidation.result.data && userValidation.result.data.isSubscribed === true ){
     // mark subscription progress
     try{ markSetupStepCompleted('subscription', { status: 'active', activatedAt: new Date().toISOString() }); }catch(e){}
     // only show dashboard if all setup steps are complete
@@ -574,7 +574,6 @@ function installTemplateInitialSetup(){
       baseFormulaSheets.forEach(function(sheetName){
         reApplyFormulaToSpreadsheet(sheetName);
       });
-      SpreadsheetApp.flush();
 
       // Apply budget sheet formulas (depend on Definition being ready)
       let formulaSheets = appBudgetFormulaTemplates();
@@ -783,6 +782,21 @@ function runThefinUPlaidAutoSync(){
             syncedCount++;
           }
         });
+
+        // Refresh formulas and budget dropdowns if any accounts were synced
+        if( syncedCount > 0 ){
+          let baseSheets = appBaseFormulaTemplates();
+          baseSheets.forEach(function(sheetName){
+            reApplyFormulaToSpreadsheet(sheetName);
+          });
+          SpreadsheetApp.flush();
+          let budgetSheets = appBudgetFormulaTemplates();
+          budgetSheets.forEach(function(sheetName){
+            reApplyFormulaToSpreadsheet(sheetName);
+          });
+          reApplyFormulaToSpreadsheet(USER_DEFINITION_SHEET);
+        }
+
         populateNetWorth();
         populateJointNetWorth();
       }
@@ -979,13 +993,22 @@ function finalizeLink(accountId){
     });
 
     let sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
-    
-    if( sheet && sheet.getRange("B2").getValue() !== '' ){
-      let formulasheets = appBaseFormulaTemplates();
-      formulasheets.forEach(function(sheetName){
+
+    //if( sheet && sheet.getRange("B2").getValue() !== '' ){
+      // Re-apply base formulas (Transactions + Definition) so year/month lists update
+      let baseSheets = appBaseFormulaTemplates();
+      baseSheets.forEach(function(sheetName){
         reApplyFormulaToSpreadsheet(sheetName);
       });
-    }
+      SpreadsheetApp.flush(); // Ensure Definition formulas evaluate before budget sheets read them
+      // Re-apply budget sheet formulas so dropdowns reflect the newly imported data
+      let budgetSheets = appBudgetFormulaTemplates();
+      budgetSheets.forEach(function(sheetName){
+        reApplyFormulaToSpreadsheet(sheetName);
+      });
+      // Re-apply Definition so cross-references to budget sheets resolve
+      reApplyFormulaToSpreadsheet(USER_DEFINITION_SHEET);
+    //}
 
     populateNetWorth();
     populateJointNetWorth();
@@ -1115,14 +1138,17 @@ function reApplyFormulaToSpreadsheet(item){
       break;
     case USER_DEFINITION_SHEET:
       if (spreadsheet.getSheetByName(USER_DEFINITION_SHEET)) {
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2").setFormula('=ARRAYFORMULA(UNIQUE(YEAR(INDIRECT(P9))))'); // Set the formula
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("S2").setFormula('=sort(unique(ARRAYFORMULA(Date(Year(Indirect(P4)),MONTH(Indirect(P4)),1))),1,True)'); // Set the formula
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("V1").setFormula("='Yearly Budget'!E2"); // Set the formula
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("X1").setFormula("='Joint Yearly Budget'!D2"); // Set the formula
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC2").setFormula("='Yearly Budget'!E2"); // Set the formula
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC4").setFormula("='Monthly Budget'!C2"); // Set the formula
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD2").setFormula("='Joint Yearly Budget'!D2"); // Set the formula
-        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD4").setFormula("='Joint Monthly Budget'!C2"); // Set the formula
+        // Compute years and periods directly from Transactions (avoids INDIRECT timing issues)
+        let defYears = getUniqueTransactionYears_(spreadsheet);
+        let defPeriods = getUniqueTransactionPeriods_(spreadsheet);
+        writeYearsToDefinition_(spreadsheet, defYears);
+        writePeriodsToDefinition_(spreadsheet, defPeriods);
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("V1").setFormula("='Yearly Budget'!E2");
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("X1").setFormula("='Joint Yearly Budget'!D2");
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC2").setFormula("='Yearly Budget'!E2");
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AC4").setFormula("='Monthly Budget'!C2");
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD2").setFormula("='Joint Yearly Budget'!D2");
+        spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("AD4").setFormula("='Joint Monthly Budget'!C2");
       }
     break;
     case USER_BUDGET_MAKER_SHEET:
@@ -1134,123 +1160,204 @@ function reApplyFormulaToSpreadsheet(item){
     break;
     case USER_MONTHLY_BUDGET_SHEET:
       if (spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET)) {
-        // Get cell E2
         let cell = spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET).getRange("C2");
-        // Clear existing data validation and content
         cell.clearDataValidations();
         cell.clearContent();
-        // Get the named range "Year"
-        let periodRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("S2:S1000");
-        // Get values from the Year range and filter out empty/invalid values
-        let periodValues = periodRange.getValues().flat().filter(function(value) {
-          return value && (typeof value === 'string' || !isNaN(value));
-        });
-        if (periodValues.length === 0) {
-          Logger.log("Error: No valid period values found in the 'Period' range (" + periodRange.getA1Notation() + ").");
-          return;
+        // Read transaction dates directly from Transactions sheet (source of truth)
+        let periodValues = getUniqueTransactionPeriods_(spreadsheet);
+        if (periodValues.length > 0) {
+          // Write periods to Definition S column so data validation range works
+          writePeriodsToDefinition_(spreadsheet, periodValues);
+          SpreadsheetApp.flush();
+          let periodRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("S2:S" + (periodValues.length + 1));
+          var rule = SpreadsheetApp.newDataValidation()
+            .requireValueInRange(periodRange, true)
+            .setAllowInvalid(false)
+            .build();
+          cell.setDataValidation(rule);
+          cell.setValue(periodValues[periodValues.length - 1]); // Default to most recent month
+          cell.setNumberFormat("MMM yyyy");
         }
-        // Create data validation rule using the full Year range
-        var rule = SpreadsheetApp.newDataValidation()
-          .requireValueInRange(periodRange, true) // Use full Year range
-          .setAllowInvalid(false) // Reject invalid inputs
-          .build();
-        // Apply the data validation rule to E2
-        cell.setDataValidation(rule);
-        // Set the default value to the first valid value
-        cell.setValue(periodValues[0]);
-        spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET).getRange("E4").setFormula('=Definition!AC24'); // Set the formula
-        spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET).getRange("B5").setFormula('=Definition!AC5'); 
+        spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET).getRange("E4").setFormula('=Definition!AC24');
+        spreadsheet.getSheetByName(USER_MONTHLY_BUDGET_SHEET).getRange("B5").setFormula('=Definition!AC5');
       }
     break;
     case USER_JOINT_MONTHLY_BUDGET_SHEET:
       if (spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET)) {
-      // Get cell E2
         let cell = spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET).getRange("C2");
-        // Clear existing data validation and content
         cell.clearDataValidations();
         cell.clearContent();
-        // Get the named range "Year"
-        let periodRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("S2:S1000");
-        // Get values from the Year range and filter out empty/invalid values
-        let periodValues = periodRange.getValues().flat().filter(function(value) {
-          return value && (typeof value === 'string' || !isNaN(value));
-        });
-        if (periodValues.length === 0) {
-          Logger.log("Error: No valid period values found in the 'Period' range (" + periodRange.getA1Notation() + ").");
-          return;
+        let periodValues = getUniqueTransactionPeriods_(spreadsheet);
+        if (periodValues.length > 0) {
+          writePeriodsToDefinition_(spreadsheet, periodValues);
+          SpreadsheetApp.flush();
+          let periodRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("S2:S" + (periodValues.length + 1));
+          var rule = SpreadsheetApp.newDataValidation()
+            .requireValueInRange(periodRange, true)
+            .setAllowInvalid(false)
+            .build();
+          cell.setDataValidation(rule);
+          cell.setValue(periodValues[periodValues.length - 1]);
+          cell.setNumberFormat("MMM yyyy");
         }
-        // Create data validation rule using the full Year range
-        var rule = SpreadsheetApp.newDataValidation()
-          .requireValueInRange(periodRange, true) // Use full Year range
-          .setAllowInvalid(false) // Reject invalid inputs
-          .build();
-        // Apply the data validation rule to E2
-        cell.setDataValidation(rule);
-        // Set the default value to the first valid value
-        cell.setValue(periodValues[0]);
-        spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET).getRange("E4").setFormula('=Definition!AD24'); // Set the formula
-        spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET).getRange("B5").setFormula('=Definition!AD5'); // Set the formula
+        spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET).getRange("E4").setFormula('=Definition!AD24');
+        spreadsheet.getSheetByName(USER_JOINT_MONTHLY_BUDGET_SHEET).getRange("B5").setFormula('=Definition!AD5');
       }
     break;
     case USER_YEARLY_BUDGET_SHEET:
       if (spreadsheet.getSheetByName(USER_YEARLY_BUDGET_SHEET)) {
-        // Get cell E2
         let cell = spreadsheet.getSheetByName(USER_YEARLY_BUDGET_SHEET).getRange("E2");
-        // Clear existing data validation and content
         cell.clearDataValidations();
         cell.clearContent();
-        // Get the named range "Year"
-        let yearRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2:R1000");
-        // Get values from the Year range and filter out empty/invalid values
-        let yearValues = yearRange.getValues().flat().filter(function(value) {
-          return value && !isNaN(value) && String(value).match(/^\d{4}$/); // Ensure valid 4-digit years
-        });
-        if (yearValues.length === 0) {
-          Logger.log("Error: No valid 4-digit year values found in the 'Year' range (" + yearRange.getA1Notation() + ").");
-          return;
+        // Read transaction years directly from Transactions sheet (source of truth)
+        let yearValues = getUniqueTransactionYears_(spreadsheet);
+        if (yearValues.length > 0) {
+          // Write years to Definition R column so data validation range works
+          writeYearsToDefinition_(spreadsheet, yearValues);
+          SpreadsheetApp.flush();
+          let yearRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2:R" + (yearValues.length + 1));
+          var rule = SpreadsheetApp.newDataValidation()
+            .requireValueInRange(yearRange, true)
+            .setAllowInvalid(false)
+            .build();
+          cell.setDataValidation(rule);
+          cell.setValue(yearValues[yearValues.length - 1]); // Default to most recent year
         }
-        // Create data validation rule using the full Year range
-        var rule = SpreadsheetApp.newDataValidation()
-          .requireValueInRange(yearRange, true) // Use full Year range
-          .setAllowInvalid(false) // Reject invalid inputs
-          .build();
-        // Apply the data validation rule to E2
-        cell.setDataValidation(rule);
-        // Set the default value to the first valid value
-        cell.setValue(yearValues[0]);
-        spreadsheet.getSheetByName(USER_YEARLY_BUDGET_SHEET).getRange("B6:D6").setFormula('=Definition!AC3'); // Set the formula
-
+        spreadsheet.getSheetByName(USER_YEARLY_BUDGET_SHEET).getRange("B6:D6").setFormula('=Definition!AC3');
       }
     break;
     case USER_JOINT_YEARLY_BUDGET_SHEET:
       if (spreadsheet.getSheetByName(USER_JOINT_YEARLY_BUDGET_SHEET)) {
-        // Get cell E2
         let cell = spreadsheet.getSheetByName(USER_JOINT_YEARLY_BUDGET_SHEET).getRange("D2");
-        // Clear existing data validation and content
         cell.clearDataValidations();
         cell.clearContent();
-        // Get the named range "Year"
-        let yearRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2:R1000");
-        // Get values from the Year range and filter out empty/invalid values
-        let yearValues = yearRange.getValues().flat().filter(function(value) {
-          return value && !isNaN(value) && String(value).match(/^\d{4}$/); // Ensure valid 4-digit years
-        });
-        if (yearValues.length === 0) {
-          Logger.log("Error: No valid 4-digit year values found in the 'Year' range (" + yearRange.getA1Notation() + ").");
-          return;
+        let yearValues = getUniqueTransactionYears_(spreadsheet);
+        if (yearValues.length > 0) {
+          writeYearsToDefinition_(spreadsheet, yearValues);
+          SpreadsheetApp.flush();
+          let yearRange = spreadsheet.getSheetByName(USER_DEFINITION_SHEET).getRange("R2:R" + (yearValues.length + 1));
+          var rule = SpreadsheetApp.newDataValidation()
+            .requireValueInRange(yearRange, true)
+            .setAllowInvalid(false)
+            .build();
+          cell.setDataValidation(rule);
+          cell.setValue(yearValues[yearValues.length - 1]);
         }
-        // Create data validation rule using the full Year range
-        var rule = SpreadsheetApp.newDataValidation()
-          .requireValueInRange(yearRange, true) // Use full Year range
-          .setAllowInvalid(false) // Reject invalid inputs
-          .build();
-        // Apply the data validation rule to E2
-        cell.setDataValidation(rule);
-        // Set the default value to the first valid value
-        cell.setValue(yearValues[0]);
-        spreadsheet.getSheetByName(USER_JOINT_YEARLY_BUDGET_SHEET).getRange("B5:C5").setFormula('=Definition!AD3'); // Set the formula
+        spreadsheet.getSheetByName(USER_JOINT_YEARLY_BUDGET_SHEET).getRange("B5:C5").setFormula('=Definition!AD3');
       }
     break;
+  }
+}
+
+/**
+ * Parses a cell value into a Date object.
+ * Handles: Date objects from getValues(), string dates like "2024-01-15" from Plaid,
+ * and numeric serial dates from Google Sheets.
+ * Returns null if the value cannot be parsed into a valid date.
+ */
+function parseTransactionDate_(val) {
+  if (!val) return null;
+  if (val instanceof Date) {
+    return isNaN(val.getTime()) ? null : val;
+  }
+  if (typeof val === 'string') {
+    // Plaid returns "YYYY-MM-DD" format
+    var parts = val.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (parts) {
+      var d = new Date(parseInt(parts[1], 10), parseInt(parts[2], 10) - 1, parseInt(parts[3], 10));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    // Try other date formats (MM/DD/YYYY, etc.)
+    var parsed = new Date(val);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (typeof val === 'number' && val > 0) {
+    // Google Sheets serial date number (days since Dec 30, 1899)
+    var d = new Date(1899, 11, 30 + val);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+/**
+ * Reads transaction dates from the Transactions sheet and returns unique years sorted ascending.
+ * Handles both Date objects and string dates ("2024-01-15" from Plaid).
+ */
+function getUniqueTransactionYears_(spreadsheet) {
+  var sheet = spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+  if (!sheet) return [];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var dates = sheet.getRange("B2:B" + lastRow).getValues().flat();
+  var yearSet = {};
+  var maxYear = new Date().getFullYear() + 1;
+  dates.forEach(function(val) {
+    var d = parseTransactionDate_(val);
+    if (d) {
+      var y = d.getFullYear();
+      if (y >= 1900 && y <= maxYear) yearSet[y] = true;
+    }
+  });
+  return Object.keys(yearSet).map(Number).sort(function(a, b) { return a - b; });
+}
+
+/**
+ * Reads transaction dates from the Transactions sheet and returns unique month-start dates sorted ascending.
+ * Handles both Date objects and string dates ("2024-01-15" from Plaid).
+ */
+function getUniqueTransactionPeriods_(spreadsheet) {
+  var sheet = spreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
+  if (!sheet) return [];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var dates = sheet.getRange("B2:B" + lastRow).getValues().flat();
+  var periodSet = {};
+  var maxYear = new Date().getFullYear() + 1;
+  dates.forEach(function(val) {
+    var d = parseTransactionDate_(val);
+    if (d && d.getFullYear() >= 1900 && d.getFullYear() <= maxYear) {
+      var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      if (!periodSet[key]) {
+        periodSet[key] = new Date(d.getFullYear(), d.getMonth(), 1);
+      }
+    }
+  });
+  return Object.keys(periodSet).sort().map(function(k) { return periodSet[k]; });
+}
+
+/**
+ * Writes computed year values into Definition R column so data validation ranges stay valid.
+ */
+function writeYearsToDefinition_(spreadsheet, yearValues) {
+  var defSheet = spreadsheet.getSheetByName(USER_DEFINITION_SHEET);
+  if (!defSheet) return;
+  // Clear old year values in R column (R2 onwards)
+  var clearRange = defSheet.getRange("R2:R1000");
+  clearRange.clearContent();
+  // Write new values
+  if (yearValues.length > 0) {
+    var data = yearValues.map(function(y) { return [y]; });
+    var range = defSheet.getRange(2, 18, data.length, 1); // Column R = 18
+    range.setValues(data);
+    range.setNumberFormat("0"); // Plain number format for years
+  }
+}
+
+/**
+ * Writes computed period dates into Definition S column so data validation ranges stay valid.
+ */
+function writePeriodsToDefinition_(spreadsheet, periodValues) {
+  var defSheet = spreadsheet.getSheetByName(USER_DEFINITION_SHEET);
+  if (!defSheet) return;
+  // Clear old period values in S column (S2 onwards)
+  var clearRange = defSheet.getRange("S2:S1000");
+  clearRange.clearContent();
+  // Write new values as Date objects with date formatting
+  if (periodValues.length > 0) {
+    var data = periodValues.map(function(d) { return [d]; });
+    var range = defSheet.getRange(2, 19, data.length, 1); // Column S = 19
+    range.setValues(data);
+    range.setNumberFormat("MMM yyyy"); // Format dates as "Jan 2024"
   }
 }
 
