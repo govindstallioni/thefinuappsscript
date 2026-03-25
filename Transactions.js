@@ -74,7 +74,7 @@ function removeTransactionsFromSheet(removedTransactions){
 }
 
 function insertTransactionsData(collection){
-  
+
   var sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
 
@@ -86,14 +86,25 @@ function insertTransactionsData(collection){
       .setFontFamily("Comfortaa")
       .setFontColor("#000000")
       .setFontWeight("bold");
-    
+
+  // Clear ARRAYFORMULA columns (Group, Type, Period) so ARRAYFORMULA can refill them
+  ["Group", "Type", "Period"].forEach(function(colName){
+    var idx = headers.indexOf(colName);
+    if(idx >= 0){
+      sheet.getRange(lastrow, idx + 1, collection.length).clearContent();
+    }
+  });
+
   return true;
-      
+
 }
 
 function sortingTransactionSheet(){
   var sheet = UserSpreadsheet.getSheetByName(USER_TRANSACTIONS_SHEET);
-  const range = sheet.getDataRange(); 
+  var lastRow = sheet.getLastRow();
+  if(lastRow < 2) return; // No data rows to sort
+  var lastCol = sheet.getLastColumn();
+  var range = sheet.getRange(2, 1, lastRow - 1, lastCol);
   range.sort({ column: 2, ascending: false });
 }
 
@@ -284,8 +295,14 @@ function updateTransactionsData( transaction_id = null, transaction = null){
       case "Account ID":
         rowValues.push(transaction.account_id);
         break;
+      case "Group":
+      case "Type":
+      case "Period":
+        // ARRAYFORMULA columns — push empty placeholder (will be cleared after setValues)
+        rowValues.push('');
+        break;
       default:
-        // Preserve user-entered values (Category, Owner, Assigned, Not Cleared, Group, Type, Period)
+        // Preserve user-entered values (Category, Owner, Assigned, Not Cleared)
         rowValues.push(existing !== undefined ? existing : '');
         break;
     }
@@ -298,6 +315,14 @@ function updateTransactionsData( transaction_id = null, transaction = null){
       .setFontFamily("Comfortaa")
       .setFontColor("#000000")
       .setFontWeight("bold");
+
+    // Clear ARRAYFORMULA columns (Group, Type, Period) so ARRAYFORMULA can refill them
+    ["Group", "Type", "Period"].forEach(function(colName){
+      var idx = headers.indexOf(colName);
+      if(idx >= 0){
+        sheet.getRange(row, idx + 1).clearContent();
+      }
+    });
   }
 
 }

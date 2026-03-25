@@ -1,4 +1,4 @@
-const API_ENDPOINT = 'https://thefinu.stallioni.com/';
+const API_ENDPOINT = 'https://thefinuportal-frontend-1014598876589.us-central1.run.app/';
 
 var UserEmail = '';
 var UserSpreadsheet = null;
