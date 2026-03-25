@@ -1,4 +1,4 @@
-const API_ENDPOINT = 'https://thefinuportal-frontend-1014598876589.us-central1.run.app/';
+const API_ENDPOINT = 'https://thefinuportal-backend-1014598876589.europe-west1.run.app/';
 
 var UserEmail = '';
 var UserSpreadsheet = null;
