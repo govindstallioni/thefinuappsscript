@@ -1933,3 +1933,49 @@ function removeTransactionsRowIfAccountIDIsEmpty(){
     sheet.deleteRow(2);
   }
 }
+
+function updatePlaidWebhook() {
+
+  const appSettingsData = getAppSettings();
+
+  if( appSettingsData.success === true ){
+    const PLAID_CLIENT_ID = appSettingsData.result.plaidClientKey;
+    const PLAID_SECRET    = appSettingsData.result.plaidSecretKey;
+    const NEW_WEBHOOK_URL = appSettingsData.result.plaidWebhookUrl;
+    const PLAID_API_ENDPOINT  = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/item/webhook/update';
+    const ACCESS_TOKEN = 'access-production-cc1ba981-6956-4c42-9a10-20b3b92c1ff8';
+    
+    // --- REQUEST ---
+    const payload = {
+      client_id: PLAID_CLIENT_ID,
+      secret:    PLAID_SECRET,
+      access_token: ACCESS_TOKEN,
+      webhook: NEW_WEBHOOK_URL
+    };
+
+    const options = {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true  // Allows you to see error responses
+    };
+
+    const response = UrlFetchApp.fetch(PLAID_API_ENDPOINT, options);
+    const responseCode = response.getResponseCode();
+    const responseBody = JSON.parse(response.getContentText());
+
+    // --- LOGGING ---
+    Logger.log('HTTP Status: ' + responseCode);
+    Logger.log('Response: ' + JSON.stringify(responseBody, null, 2));
+
+    if (responseCode === 200) {
+      Logger.log('✅ Webhook updated successfully!');
+      Logger.log('New webhook: ' + responseBody.item.webhook);
+    } else {
+      Logger.log('❌ Error: ' + responseBody.error_message);
+    }
+
+    return responseBody;
+  }
+  
+}
