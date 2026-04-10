@@ -1,0 +1,553 @@
+<script type="text/javascript">
+function showUserDashboard(){
+  google.script.run.withSuccessHandler(function(response){
+    loaderEle.classList.add('hidden');
+    mainAppEle.innerHTML = response;
+    showTab('accounts');
+  }).withFailureHandler(function(error){
+    loaderEle.classList.add('hidden');
+    mainAppEle.textContent = error.message || 'Failed to load dashboard';
+  }).showUserDashboardTemplate();
+}
+
+// Tab Navigation
+function showTab(tabId) {
+    // Hide all tabs
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('active', 'text-blue-600', 'border-b-2', 'border-blue-600');
+    btn.classList.add('text-gray-700');
+  });
+
+  // Show selected tab
+  document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+  const btn = document.getElementById(`btn-${tabId}`);
+  btn.classList.add('active', 'text-blue-600', 'border-b-2', 'border-blue-600');
+
+  // Special behavior: load accounts when Accounts tab is shown
+  if (tabId === 'accounts') {
+    loadConnectedAccounts();
+  }
+}
+
+
+// ── Load accounts from your API + render ──────────────────────
+function loadConnectedAccounts() {
+
+  const tabAccountsEle = document.getElementById('tab-accounts');
+  const accountListElement = tabAccountsEle.querySelector('#connected-account-list');
+  const accountDetailElement = tabAccountsEle.querySelector('#account-detail');
+  const renameAccountElement = tabAccountsEle.querySelector('#rename-account');
+  const balanceHistoryElement = tabAccountsEle.querySelector('#balance-history');
+  const loaderElement = tabAccountsEle.querySelector('.tab-loader');
+
+  // Reset UI
+  loaderElement.classList.remove('hidden');
+  accountListElement.classList.add('hidden');
+  accountDetailElement.classList.add('hidden');
+  renameAccountElement.classList.add('hidden');
+  balanceHistoryElement.classList.add('hidden');
+  accountListElement.textContent = '';
+  accountDetailElement.textContent = '';
+  renameAccountElement.textContent = '';
+  balanceHistoryElement.textContent = '';
+
+  google.script.run.withSuccessHandler(response => {
+    if( response !== false ){
+      accountListElement.innerHTML = response;
+      accountListElement.querySelectorAll('.btn-view-detail').forEach(function(btn) {
+        btn.addEventListener('click', function() { viewAccountDetail(this.dataset.accountId); });
+      });
+      accountListElement.classList.remove('hidden');
+      loaderElement.classList.add('hidden');
+    }else{
+      accountListElement.textContent = '';
+      var p = document.createElement('p');
+      p.className = 'text-gray-600 py-8 text-center';
+      p.textContent = 'Something went wrong, Please try again later.';
+      accountListElement.appendChild(p);
+      accountListElement.classList.remove('hidden');
+      loaderElement.classList.add('hidden');
+    }
+  }).withFailureHandler(err => {
+      accountListElement.textContent = '';
+      var p = document.createElement('p');
+      p.className = 'text-red-600 py-8';
+      p.textContent = 'Something wrong, Please try again. ';
+      var span = document.createElement('span');
+      span.className = 'text-sm';
+      span.textContent = '(' + (err.message || 'Network error') + ')';
+      p.appendChild(document.createElement('br'));
+      p.appendChild(span);
+      accountListElement.appendChild(p);
+      accountListElement.classList.remove('hidden');
+      loaderElement.classList.add('hidden');
+  }).getConnectedPlaidAccountsTemplate();   // ← your server function
+}
+// Detail Page
+function viewAccountDetail(account_id) {
+  const tabAccountsEle = document.getElementById('tab-accounts');
+  const accountListElement = tabAccountsEle.querySelector('#connected-account-list');
+  const accountDetailElement = tabAccountsEle.querySelector('#account-detail');
+  const renameAccountElement = tabAccountsEle.querySelector('#rename-account');
+  const balanceHistoryElement = tabAccountsEle.querySelector('#balance-history');
+  const loaderElement = tabAccountsEle.querySelector('.tab-loader');
+  // Reset UI
+  loaderElement.classList.remove('hidden');
+  accountListElement.classList.add('hidden');
+  renameAccountElement.classList.add('hidden');
+  balanceHistoryElement.classList.add('hidden');
+  accountDetailElement.classList.add('hidden');
+  accountDetailElement.textContent = '';
+  google.script.run.withSuccessHandler(response => {
+    accountDetailElement.innerHTML = response;
+    accountDetailElement.querySelectorAll('.btn-rename').forEach(function(btn) {
+      btn.addEventListener('click', function() { renameAccount(this.dataset.accountId, this.dataset.accountName); });
+    });
+    accountDetailElement.querySelectorAll('.btn-unlink').forEach(function(btn) {
+      btn.addEventListener('click', function() { unlinkAccountFromTemplate(this.dataset.accountId, this); });
+    });
+    accountDetailElement.querySelectorAll('.btn-link').forEach(function(btn) {
+      btn.addEventListener('click', function() { linkAccountToTemplate(this.dataset.accountId, this); });
+    });
+    accountDetailElement.querySelectorAll('.btn-remove').forEach(function(btn) {
+      btn.addEventListener('click', function() { removeAccount(this.dataset.accountId); });
+    });
+    accountDetailElement.classList.remove('hidden');
+    loaderElement.classList.add('hidden');
+  }).withFailureHandler(err => {
+      accountDetailElement.textContent = '';
+      var p = document.createElement('p');
+      p.className = 'text-red-600 py-8';
+      p.textContent = 'Something wrong, Please try again. ';
+      var span = document.createElement('span');
+      span.className = 'text-sm';
+      span.textContent = '(' + (err.message || 'Network error') + ')';
+      p.appendChild(document.createElement('br'));
+      p.appendChild(span);
+      accountDetailElement.appendChild(p);
+      accountDetailElement.classList.remove('hidden');
+      loaderElement.classList.add('hidden');
+  }).getAccountDetailsTemplate(account_id);   // ← your server function
+}
+
+function renameAccount( account_id, account_name ){
+  const tabAccountsEle = document.getElementById('tab-accounts');
+  // Reset UI
+  const accountListElement = tabAccountsEle.querySelector('#connected-account-list');
+  const accountDetailElement = tabAccountsEle.querySelector('#account-detail');
+  const renameAccountElement = tabAccountsEle.querySelector('#rename-account');
+  const balanceHistoryElement = tabAccountsEle.querySelector('#balance-history');
+  const loaderElement = tabAccountsEle.querySelector('.tab-loader');
+ 
+  // Reset UI
+  loaderElement.classList.remove('hidden');
+  accountDetailElement.classList.add('hidden');
+  accountListElement.classList.add('hidden');
+  balanceHistoryElement.classList.add('hidden');
+  renameAccountElement.classList.add('hidden');
+  renameAccountElement.textContent = '';
+  google.script.run.withSuccessHandler(response => {
+    renameAccountElement.innerHTML = response;
+    var cancelBtn = renameAccountElement.querySelector('#btnCancelRename');
+    if (cancelBtn) cancelBtn.addEventListener('click', function() { cancelRename(); });
+    var saveBtn = renameAccountElement.querySelector('#btnSaveRename');
+    if (saveBtn) saveBtn.addEventListener('click', function() { saveRename(this.dataset.accountId, this); });
+    renameAccountElement.classList.remove('hidden');
+    loaderElement.classList.add('hidden');
+  }).withFailureHandler(err => {
+      renameAccountElement.textContent = '';
+      var p = document.createElement('p');
+      p.className = 'text-red-600 py-8';
+      p.textContent = 'Something wrong, Please try again. ';
+      var span = document.createElement('span');
+      span.className = 'text-sm';
+      span.textContent = '(' + (err.message || 'Network error') + ')';
+      p.appendChild(document.createElement('br'));
+      p.appendChild(span);
+      renameAccountElement.appendChild(p);
+      renameAccountElement.classList.remove('hidden');
+      loaderElement.classList.add('hidden');
+  }).getRenameAccountTemplate( account_id, account_name );
+}
+
+function goBackAccountListCard(){
+  loadConnectedAccounts();
+}
+
+function cancelRename(){
+  const tabAccountsEle = document.getElementById('tab-accounts');
+  const accountDetailElement = tabAccountsEle.querySelector('#account-detail');
+  const renameAccountElement = tabAccountsEle.querySelector('#rename-account');
+  const loaderElement = tabAccountsEle.querySelector('.tab-loader');
+  // Reset UI
+  loaderElement.classList.remove('hidden');
+  accountDetailElement.classList.remove('hidden');
+  renameAccountElement.textContent = '';
+  renameAccountElement.classList.add('hidden');
+  loaderElement.classList.add('hidden');
+}
+
+function saveRename( account_id, btnEle ){
+
+  let renameEle = btnEle.closest('#rename-account');
+  if (!renameEle) {
+    console.error("Cannot find parent container");
+    showMessage("Technical issue – please try again", 'error');
+    return;
+  }
+  const input = renameEle.querySelector('#newName');
+
+  if (!input) {
+    console.error("Cannot find input #newName in the container");
+    return;
+  }
+
+  const newName = input.value.trim();
+
+  if (!newName) {
+    showMessage("Please enter a new name", 'error');
+    input.focus();
+    return;
+  }
+
+  // Optional: disable button during request
+  btnEle.disabled = true;
+  btnEle.textContent = "Saving...";
+
+  google.script.run.withSuccessHandler((response) => {
+    if( response.success === true ){
+      renameEle.querySelector('.responsemessage').innerHTML = actionSuccessMessage(response.message);
+      renameEle.querySelector('.responsemessage').classList.remove("hidden");
+      setTimeout(() => {
+        viewAccountDetail(account_id);
+        renameEle.querySelector('.responsemessage').classList.add("hidden");
+        renameEle.querySelector('.responsemessage').textContent = '';
+        renameEle.textContent = '';
+        renameEle.classList.add("hidden");
+      }, 2000);
+    }else{
+      renameEle.querySelector('.responsemessage').innerHTML = actionFailureMessage(response.message);
+      renameEle.querySelector('.responsemessage').classList.remove("hidden");
+    }
+    }).withFailureHandler(err => {
+      showMessage((err.message || "Unknown error"), 'error');
+      //btnEle.disabled = false;
+      btnEle.textContent = "Saved";
+    }).updateAccountName(account_id, newName);
+
+}
+
+// Backend Callbacks
+function linkNewAccount(btnEle) {
+  if (btnEle) { btnEle.disabled = true; btnEle.textContent = 'Opening...'; }
+  google.script.run.withSuccessHandler(function(){
+    if (btnEle) { btnEle.disabled = false; btnEle.textContent = '+ Link Plaid Account'; }
+  }).withFailureHandler(function(){
+    if (btnEle) { btnEle.disabled = false; btnEle.textContent = '+ Link Plaid Account'; }
+  }).linkNewAccount();
+}
+
+function removeAccount(account_id) {
+  google.script.run.withSuccessHandler( function(response){
+    if( response.success === true ){
+      loadConnectedAccounts();
+    }
+    }).withFailureHandler(err => {
+      showMessage((err.message || "Unknown error"), 'error');
+    }).removeAccountFromList(account_id);
+}
+
+function linkAccountToTemplate(accountId, btnEl) {
+  btnEl.disabled = true;
+  btnEl.textContent = 'Please wait..';
+  google.script.run.withSuccessHandler(function (response) {
+    if (response === true) {
+      // Server opened a confirmation modal. Do not assume the user confirmed.
+      // Reset the button so Cancel closes the modal without leaving the button in a 'linking' state.
+      btnEl.disabled = false;
+      btnEl.textContent = 'Link to Template';
+      showMessage('Confirm import to proceed.', 'success', 3000);
+    } else {
+      btnEl.disabled = false;
+      btnEl.textContent = 'Link to Template';
+    }
+    }).withFailureHandler(function (err) {
+    btnEl.disabled = false;
+    btnEl.textContent = "Retry";
+    showMessage(err.message || 'Unknown error', 'error');
+  }).confirmLinkAccountToTemplate(accountId);
+}
+
+function unlinkAccountFromTemplate(account_id, btnEl){
+  btnEl.disabled = true;
+  btnEl.textContent = "Please wait..";
+  google.script.run.withSuccessHandler(function(response) {
+    if (response === true) {
+      // Server opened a confirmation modal. Do not start unlinking automatically.
+      btnEl.disabled = false;
+      btnEl.textContent = 'Unlink from Spreadsheet';
+      showMessage('Confirm unlink to proceed.', 'success', 3000);
+    } else {
+      btnEl.disabled = false;
+      btnEl.textContent = 'Unlink from Spreadsheet';
+    }
+  }).withFailureHandler(function (err) {
+    btnEl.disabled = false;
+    btnEl.textContent = "Retry";
+    showMessage(err.message || 'Unknown error', 'error');
+  }).confirmUnlinkAccountFromTemplate(account_id);
+}
+
+function addNewBalanceHistory(btnEle){
+  let tabAccountsEle = btnEle.closest('#tab-accounts');
+  let loaderEle = tabAccountsEle.querySelector('.tab-loader');
+  let accountListElement = tabAccountsEle.querySelector('#connected-account-list');
+  let accountDetailElement = tabAccountsEle.querySelector('#account-detail');
+  let renameAccountElement = tabAccountsEle.querySelector('#rename-account');
+  let balanceHistoryElement = tabAccountsEle.querySelector('#balance-history');
+
+  loaderEle.classList.remove('hidden');
+  balanceHistoryElement.classList.add('hidden');
+  accountListElement.classList.add('hidden');
+  accountDetailElement.classList.add('hidden');
+  renameAccountElement.classList.add('hidden');
+  balanceHistoryElement.textContent = '';
+  google.script.run.withSuccessHandler(function(response){
+    loaderEle.classList.add('hidden');
+    balanceHistoryElement.innerHTML = response;
+    balanceHistoryElement.classList.remove('hidden');
+    accountListElement.classList.add('hidden');
+    accountDetailElement.classList.add('hidden');
+    renameAccountElement.classList.add('hidden'); 
+  }).withFailureHandler(function(error){
+    balanceHistoryElement.textContent = '';
+    var p = document.createElement('p');
+    p.className = 'text-red-600 py-8';
+    p.textContent = 'Something wrong, Please try again. ';
+    var span = document.createElement('span');
+    span.className = 'text-sm';
+    span.textContent = '(' + (error.message || 'Network error') + ')';
+    p.appendChild(document.createElement('br'));
+    p.appendChild(span);
+    balanceHistoryElement.appendChild(p);
+    balanceHistoryElement.classList.remove('hidden');
+    loaderEle.classList.add('hidden');
+  }).showAddBalanceHistoryFormTemplate();
+}
+
+function showExistingAccountFields(thisEle){
+  let formEle = thisEle.closest('#balance-history-form');
+  thisEle.classList.add('active', 'theme-bg-semi-light');
+  thisEle.classList.remove('bg-gray-200', 'text-gray-700');
+  formEle.querySelector('#use-manual-account-btn').classList.remove('active', 'theme-bg-semi-light');
+  formEle.querySelector('#use-manual-account-btn').classList.add('bg-gray-200', 'text-gray-700');
+  document.getElementById('existing-account-fields').classList.remove('hidden');
+  document.getElementById('manual-account-fields').classList.add('hidden');
+  // Clear other tab's fields so they don't interfere with FormData
+  document.getElementById('manual-account-fields').innerHTML = '';
+  // add please wait loader
+  formEle.querySelector('#existing-account-fields').innerHTML = '<p class="text-gray-600 py-4 text-center">Loading...</p>';
+  google.script.run.withSuccessHandler(function(response){
+    formEle.querySelector('#existing-account-fields').innerHTML = response;
+  }).withFailureHandler(function(error){
+    showMessage((error.message || "Unknown error"), 'error');
+  }).showExistingAccountFormFieldsTemplate();
+}
+function showManualAccountFields(thisEle){
+  let formEle = thisEle.closest('#balance-history-form');
+  thisEle.classList.add('active', 'theme-bg-semi-light');
+  thisEle.classList.remove('bg-gray-200', 'text-gray-700');
+  formEle.querySelector('#use-existing-account-btn').classList.remove('active', 'theme-bg-semi-light');
+  formEle.querySelector('#use-existing-account-btn').classList.add('bg-gray-200', 'text-gray-700');
+  document.getElementById('manual-account-fields').classList.remove('hidden');
+  document.getElementById('existing-account-fields').classList.add('hidden');
+  // Clear other tab's fields so they don't interfere with FormData
+  document.getElementById('existing-account-fields').innerHTML = '';
+  // add please wait loader
+  formEle.querySelector('#manual-account-fields').innerHTML = '<p class="text-gray-600 py-4 text-center">Loading...</p>';
+  google.script.run.withSuccessHandler(function(response){
+    formEle.querySelector('#manual-account-fields').innerHTML = response;
+  }).withFailureHandler(function(error){
+    showMessage((error.message || "Unknown error"), 'error');
+  }).showManualAccountFormFieldsTemplate();
+}
+
+function submitBalanceHistoryForm(event){
+  event.preventDefault();
+  let formEle = event.target;
+  let formData = new FormData(formEle);
+  let data = {};
+  let responseEle = formEle.querySelector('.responsemessage');
+  responseEle.textContent = '';
+  formData.forEach((value, key) => {
+    data[key] = value;
+  });
+  // all fields are required validation - account-name, balance-input, date-input
+  console.log(data);
+  if( !data['accountBalance'] || data['accountBalance'].trim() === '' ){
+    responseEle.classList.add('error', 'text-red-600');
+    responseEle.innerHTML = actionFailureMessage("Please enter the balance");
+    responseEle.classList.remove("hidden");
+    formEle.querySelector('#accountBalance').focus();
+    return;
+  }
+  if( !data['balanceDate'] || data['balanceDate'].trim() === '' ){
+    responseEle.classList.add('error', 'text-red-600');
+    responseEle.innerHTML = actionFailureMessage("Please enter the date");
+    responseEle.classList.remove("hidden");
+    formEle.querySelector('#balanceDate').focus();
+    return;
+  }
+  if( !data['accountName'] || data['accountName'].trim() === '' ){
+    responseEle.classList.add('error', 'text-red-600');
+    responseEle.innerHTML = actionFailureMessage("Please select or enter the account name");
+    responseEle.classList.remove("hidden");
+    formEle.querySelector('#accountName').focus();
+    return;
+  }
+  
+  let submitBtn = formEle.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Submitting...";
+  responseEle.classList.remove("error", "text-red-600");
+  responseEle.textContent = '';
+  google.script.run.withSuccessHandler(function(response){
+    if( response.success === true ){
+      formEle.querySelector('.responsemessage').innerHTML = actionSuccessMessage(response.message);
+      formEle.querySelector('.responsemessage').classList.remove("hidden");
+      buttonEventComplete(submitBtn, 'Saved!', 'Add Balance History', 2000);
+      formEle.reset();
+    }else{
+      formEle.querySelector('.responsemessage').innerHTML = actionFailureMessage(response.message);
+      formEle.querySelector('.responsemessage').classList.remove("hidden");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Add Balance History";
+    }
+  }).withFailureHandler(function(error){
+    showMessage((error.message || "Unknown error"), 'error');
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Add Balance History";
+  }).submitBalanceHistoryFormData(data);
+}
+
+function generateFinancialReport(btnEle){
+  btnEle.disabled = true;
+  btnEle.textContent = "Generating...";
+  google.script.run.withSuccessHandler(function(response){
+    if(response && response.success){
+      buttonEventComplete(btnEle, 'Report Generated!', 'Generate Report', 2500);
+      showMessage(response.message, 'success');
+    } else if(response && response.missingSheets){
+      btnEle.disabled = false;
+      btnEle.textContent = "Generate Report";
+      showMessage(response.message, 'error');
+    } else {
+      btnEle.disabled = false;
+      btnEle.textContent = "Generate Report";
+      showMessage((response && response.message) || 'Report generation failed.', 'error');
+    }
+  }).withFailureHandler(function(error){
+    showMessage((error.message || "Unknown error, Please reopen the app."), 'error');
+    btnEle.disabled = false;
+    btnEle.textContent = "Generate Report";
+  }).generateFinancialReport();
+}
+
+function toggleAutoSync(btnEle, enable){
+  btnEle.disabled = true;
+  btnEle.textContent = enable ? "Enabling..." : "Disabling...";
+  google.script.run.withSuccessHandler(function(response){
+    if(response && response.success){
+      var newLabel = enable ? "Disable Auto-Sync" : "Enable Auto-Sync";
+      buttonEventComplete(btnEle, enable ? 'Enabled!' : 'Disabled!', newLabel, 1500);
+      setTimeout(function(){
+        if( enable ){
+          btnEle.classList.remove("theme-bg-primary");
+          btnEle.classList.add("theme-bg-light");
+        }else{
+          btnEle.classList.remove("theme-bg-light");
+          btnEle.classList.add("theme-bg-primary");
+        }
+      }, 1600);
+      showMessage(response.message, 'success');
+    } else {
+      btnEle.disabled = false;
+      btnEle.textContent = enable ? "Enable Auto-Sync" : "Disable Auto-Sync";
+      showMessage((response && response.message) || 'Failed to update Auto-Sync.', 'error');
+    }
+  }).withFailureHandler(function(error){
+    showMessage((error.message || "Unknown error"), 'error');
+    btnEle.disabled = false;
+    btnEle.textContent = enable ? "Enable Auto-Sync" : "Disable Auto-Sync";
+  }).toggleAutoSyncSetting(enable);
+}
+
+function handleResetTemplate(btn){
+  btn.disabled = true;
+  btn.textContent = 'Installing...';
+  google.script.run.withSuccessHandler(function(response){
+    if(response && response.success){
+      buttonEventComplete(btn, 'Templates Restored!', 'Reset Templates', 2500);
+      showMessage(response.message || 'Missing templates have been restored successfully.', 'success');
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Reset Templates';
+      showMessage((response && response.message) || 'Failed to reset templates.', 'error');
+    }
+  }).withFailureHandler(function(error){
+    btn.disabled = false;
+    btn.textContent = 'Reset Templates';
+    showMessage((error.message || 'Something went wrong. Please try again.'), 'error');
+  }).installTemplateInitialSetup();
+}
+
+function handleRepairSystem(btn){
+  btn.disabled = true;
+  btn.textContent = 'Repairing...';
+  var detailsEl = document.getElementById('repair-details');
+  if (detailsEl) { detailsEl.classList.add('hidden'); detailsEl.textContent = ''; }
+  google.script.run.withSuccessHandler(function(response){
+    if(response && response.success){
+      buttonEventComplete(btn, 'Repair Complete!', 'Repair System', 3000);
+      showMessage(response.message, 'success');
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Repair System';
+      showMessage((response && response.message) || 'Repair failed. Please try again.', 'error');
+    }
+    // Show step details regardless of outcome
+    if (detailsEl && response && response.details && response.details.length > 0) {
+      detailsEl.textContent = response.details.join(' | ');
+      detailsEl.classList.remove('hidden');
+    }
+  }).withFailureHandler(function(error){
+    btn.disabled = false;
+    btn.textContent = 'Repair System';
+    showMessage((error.message || 'Something went wrong. Please try again.'), 'error');
+  }).repairSystem();
+}
+
+function handleCancelSubscription(btn){
+  if (btn) { btn.disabled = true; var orig = btn.innerText; btn.innerText = 'Cancelling...'; }
+  google.script.run.withSuccessHandler(function(response){
+    if(response && response.success){
+      var msg = 'Your subscription has been scheduled for cancellation.';
+      if(response.periodEnd){
+        var endDate = new Date(response.periodEnd);
+        if(!isNaN(endDate.getTime())){
+          msg += ' You will retain full access until ' + endDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) + '.';
+        }
+      }
+      if(btn){ btn.disabled = true; btn.innerText = 'Cancellation Scheduled'; btn.classList.remove('bg-red-700'); btn.classList.add('bg-gray-400'); }
+      showMessage(msg, 'success', 10000);
+    }else{
+      if(btn){ btn.disabled = false; btn.innerText = orig; }
+      showMessage((response && response.message) || 'Unable to cancel subscription.', 'error');
+    }
+  }).withFailureHandler(function(error){
+    showMessage((error.message || "Unknown error"), 'error');
+    if (btn) { btn.disabled = false; btn.innerText = orig; }
+  }).cancelUserSubscription();
+}
+</script>

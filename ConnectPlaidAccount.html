@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  <style>
+    :root{
+        --primary-font: 'Comfortaa', sans-serif;
+        --color_01 : #6E8277;
+        --color_02 : #37484C;
+        --color_03 : #6E434D;
+        --color_04 : #E68E68;
+        --color_05 : #EEC49F;
+        --color_06 : #E9EAD1;
+    }
+    .theme-primary { color: var(--color_02); }
+    .theme-bg-primary { background-color: var(--color_02); }
+    body{ font-family: var(--primary-font); margin:0; padding:20px; background:#f1f5f9 }
+    .fade-in{ animation: fadeIn .32s ease; }
+    @keyframes fadeIn{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:translateY(0) } }
+    .loader-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:9999 }
+    .loader-centered{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); text-align:center }
+    .spinner{ width:44px; height:44px; border:4px solid rgba(255,255,255,0.28); border-top:4px solid rgba(255,255,255,0.95); border-radius:50%; animation:spin 1s linear infinite }
+    @keyframes spin{ to{ transform:rotate(360deg) } }
+    .btn-spinner-inline{ width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-radius:50%; border-top-color:#fff; animation:spin 0.6s linear infinite; display:none }
+    .btn-spinner-inline.visible{ display:inline-block }
+    .result-icon{ width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 12px }
+    .btn-complete{ background-color:#16a34a !important; color:white !important; }
+  </style>
+</head>
+<body>
+  <div id="loader" class="loader-overlay"><div class="loader-centered"><div class="spinner"></div><p id="loaderText" class="text-white mt-3">Please wait...</p></div></div>
+
+  <div id="statusBanner" class="mb-4"></div>
+
+  <main class="max-w-2xl mx-auto">
+    <section id="plaid-content" class="bg-white rounded-xl shadow-sm p-6 fade-in" style="border:1px solid #e5e7eb;">
+      <div id="plaid-actions">
+        <div class="text-center">
+          <div class="result-icon" style="background:#e0f2fe;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4z"/>
+            </svg>
+          </div>
+          <h2 class="text-lg font-bold mb-1">Link Your Account</h2>
+          <p class="text-sm text-slate-500 mb-4">Securely connect your bank through Plaid to sync your financial data.</p>
+          <button id="btnConnectPlaid" class="cursor-pointer w-full py-2.5 theme-bg-primary text-white rounded-lg font-medium">
+            <span style="display:flex;align-items:center;justify-content:center;gap:8px;">
+              <span id="btnConnectText">Connect with Plaid</span>
+              <span id="btnConnectSpinner" class="btn-spinner-inline"></span>
+            </span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function showloader(msg){ document.getElementById('loader').style.display='block'; document.getElementById('loaderText').textContent = msg || 'Please wait...'; }
+    function hideloader(){ document.getElementById('loader').style.display='none'; }
+
+    function showMessage(msg, type, duration){
+      var banner = document.getElementById('statusBanner');
+      if(!banner){ try{ alert(msg); }catch(e){} return; }
+      banner.innerHTML = '';
+      var div = document.createElement('div');
+      div.className = (type === 'error') ? 'bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg text-sm' : 'bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-lg text-sm';
+      div.textContent = msg;
+      banner.appendChild(div);
+      if(type !== 'error') setTimeout(function(){ banner.innerHTML=''; }, duration || 5000);
+    }
+
+    function resetToInitialUI(){
+      var container = document.getElementById('plaid-content');
+      container.innerHTML = '';
+
+      var actionsDiv = document.createElement('div');
+      actionsDiv.id = 'plaid-actions';
+      actionsDiv.innerHTML =
+        '<div class="text-center">' +
+          '<div class="result-icon" style="background:#e0f2fe;">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4z"/>' +
+            '</svg>' +
+          '</div>' +
+          '<h2 class="text-lg font-bold mb-1">Link Your Account</h2>' +
+          '<p class="text-sm text-slate-500 mb-4">Securely connect your bank through Plaid to sync your financial data.</p>' +
+          '<button id="btnConnectPlaid" class="cursor-pointer w-full py-2.5 theme-bg-primary text-white rounded-lg font-medium">' +
+            '<span style="display:flex;align-items:center;justify-content:center;gap:8px;">' +
+              '<span id="btnConnectText">Connect with Plaid</span>' +
+              '<span id="btnConnectSpinner" class="btn-spinner-inline"></span>' +
+            '</span>' +
+          '</button>' +
+        '</div>';
+      container.appendChild(actionsDiv);
+
+      document.getElementById('btnConnectPlaid').addEventListener('click', handleConnectClick);
+      document.getElementById('statusBanner').innerHTML = '';
+    }
+
+    function resetConnectButton(){
+      var btn = document.getElementById('btnConnectPlaid');
+      var textEl = document.getElementById('btnConnectText');
+      var spinnerEl = document.getElementById('btnConnectSpinner');
+      if(btn) btn.disabled = false;
+      if(textEl) textEl.textContent = 'Connect with Plaid';
+      if(spinnerEl) spinnerEl.classList.remove('visible');
+    }
+
+    function connectPlaidModalUI(link_token){
+      try{
+        var handler = Plaid.create({
+          token: link_token,
+          onSuccess: function(public_token, metadata){
+            showloader('Finalizing connection...');
+            google.script.run
+              .withSuccessHandler(function(response){ hideloader(); showPlaidSuccessUI(response); })
+              .withFailureHandler(function(err){ hideloader(); showPlaidFailureUI(err); })
+              .exchangePublicTokenForAccessToken(public_token, metadata);
+          },
+          onExit: function(err, metadata){
+            hideloader();
+            if(err) showPlaidFailureUI(err);
+          },
+          onEvent: function(eventName){
+            if(eventName === 'OPEN') hideloader();
+          }
+        });
+        handler.open();
+      }catch(e){
+        hideloader();
+        showPlaidFailureUI({ message: 'Plaid Link failed to open. Please try again.' });
+      }
+    }
+
+    function showPlaidSuccessUI(response){
+      var container = document.getElementById('plaid-content');
+      container.innerHTML = '';
+
+      // Success icon
+      var iconWrap = document.createElement('div');
+      iconWrap.className = 'result-icon';
+      iconWrap.style.background = '#dcfce7';
+      iconWrap.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+      container.appendChild(iconWrap);
+
+      var title = document.createElement('h2');
+      title.className = 'text-lg font-bold text-center mb-1';
+      title.textContent = 'Account Connected';
+      container.appendChild(title);
+
+      var subtitle = document.createElement('p');
+      subtitle.className = 'text-sm text-slate-500 text-center mb-5';
+      subtitle.textContent = 'Your bank account has been successfully linked to theFinU.';
+      container.appendChild(subtitle);
+
+      var actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+
+      var openBtn = document.createElement('button');
+      openBtn.className = 'cursor-pointer w-full py-2.5 theme-bg-primary text-white rounded-lg font-medium';
+      openBtn.textContent = 'Open App';
+      openBtn.addEventListener('click', function(){
+        openBtn.disabled = true; openBtn.textContent = 'Opening...';
+        google.script.run.withSuccessHandler(function(){
+          try{ google.script.host.close(); }catch(e){}
+        }).withFailureHandler(function(err){
+          openBtn.disabled = false; openBtn.textContent = 'Open App';
+          showMessage('Unable to open app.','error');
+        }).showSidebar();
+      });
+
+      var connectMoreBtn = document.createElement('button');
+      connectMoreBtn.className = 'cursor-pointer w-full py-2.5 bg-slate-100 text-slate-700 rounded-lg font-medium border border-slate-200';
+      connectMoreBtn.textContent = 'Connect Another Account';
+      connectMoreBtn.addEventListener('click', function(){ resetToInitialUI(); });
+
+      actions.appendChild(openBtn);
+      actions.appendChild(connectMoreBtn);
+      container.appendChild(actions);
+
+      showMessage('Account connected successfully.', 'success');
+    }
+
+    function showPlaidFailureUI(err){
+      var container = document.getElementById('plaid-content');
+      container.innerHTML = '';
+
+      // Error icon
+      var iconWrap = document.createElement('div');
+      iconWrap.className = 'result-icon';
+      iconWrap.style.background = '#fef2f2';
+      iconWrap.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+      container.appendChild(iconWrap);
+
+      var title = document.createElement('h2');
+      title.className = 'text-lg font-bold text-center mb-1';
+      title.textContent = 'Connection Failed';
+      container.appendChild(title);
+
+      var msg = document.createElement('p');
+      msg.className = 'text-sm text-slate-500 text-center mb-5';
+      msg.textContent = (err && err.message) ? err.message : 'Something went wrong while connecting your account.';
+      container.appendChild(msg);
+
+      var actions = document.createElement('div');
+      actions.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+
+      var retryBtn = document.createElement('button');
+      retryBtn.className = 'cursor-pointer w-full py-2.5 theme-bg-primary text-white rounded-lg font-medium';
+      retryBtn.textContent = 'Try Again';
+      retryBtn.addEventListener('click', function(){ resetToInitialUI(); });
+
+      var openBtn = document.createElement('button');
+      openBtn.className = 'cursor-pointer w-full py-2.5 bg-slate-100 text-slate-700 rounded-lg font-medium border border-slate-200';
+      openBtn.textContent = 'Open App';
+      openBtn.addEventListener('click', function(){
+        openBtn.disabled = true; openBtn.textContent = 'Opening...';
+        google.script.run.withSuccessHandler(function(){
+          try{ google.script.host.close(); }catch(e){}
+        }).withFailureHandler(function(err){
+          openBtn.disabled = false; openBtn.textContent = 'Open App';
+          showMessage('Unable to open app.','error');
+        }).showSidebar();
+      });
+
+      actions.appendChild(retryBtn);
+      actions.appendChild(openBtn);
+      container.appendChild(actions);
+    }
+
+    function handleConnectClick(){
+      var btn = document.getElementById('btnConnectPlaid');
+      var textEl = document.getElementById('btnConnectText');
+      var spinnerEl = document.getElementById('btnConnectSpinner');
+      btn.disabled = true;
+      textEl.textContent = 'Connecting...';
+      spinnerEl.classList.add('visible');
+
+      google.script.run.withSuccessHandler(function(resp){
+        if(resp && resp.link_token){
+          showloader('Opening Plaid...');
+          resetConnectButton();
+          connectPlaidModalUI(resp.link_token);
+        } else {
+          resetConnectButton();
+          showMessage('Unable to start Plaid.','error');
+        }
+      }).withFailureHandler(function(err){
+        resetConnectButton();
+        showMessage('Cannot start Plaid: ' + (err.message||''),'error');
+      }).generatePlaidTokenLink();
+    }
+
+    document.addEventListener('DOMContentLoaded', function(){
+      document.getElementById('btnConnectPlaid').addEventListener('click', handleConnectClick);
+    });
+  </script>
+</body>
+</html>

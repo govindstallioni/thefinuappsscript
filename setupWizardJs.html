@@ -1,0 +1,268 @@
+<script type="text/javascript">
+
+const paymentProcessingTime = 120; // seconds (2 minutes)
+let countdownInterval;
+let remainingSeconds = paymentProcessingTime; // 90 seconds
+let subscriptionPollIntervalId = null;
+
+function getSetupWizardEle(){
+  return document.getElementById('setup-wizard');
+}
+
+
+// Step Navigation
+function handleStepStartFreeTrial(btnEl) {
+  startStripeCheckOutProcess(btnEl);
+}
+
+function handleTryAgainFreeTrial(btnEl){
+  resetPaymentProcessingTime();
+  startStripeCheckOutProcess(btnEl);
+}
+
+function resetPaymentProcessingTime(){
+  remainingSeconds = paymentProcessingTime;
+}
+
+function startStripeCheckOutProcess(btnEle){
+  if (!btnEle) return;
+  if (btnEle.dataset.disabled === 'true') return; // debounce
+  // 1. Start Button Event
+  buttonEventStart(btnEle, "Please wait..");     
+  btnEle.dataset.disabled = 'true';
+  // 2. Start countdown (visual)
+  startSubscribeCountdown(btnEle);
+  // 3. Open Stripe Checkout
+  google.script.run.withSuccessHandler(function(response) {
+    if (response && response.checkoutUrl) {
+      window.open(response.checkoutUrl, '_blank');
+      // start polling for subscription status (timeout uses paymentProcessingTime)
+      pollForSubscription(btnEle, 5000, paymentProcessingTime * 1000); // poll every 5s for configured time
+    }else{
+      buttonEventEnd(btnEle, "Start Free Trial");
+      btnEle.dataset.disabled = 'false';
+      alert('Failed to create checkout session');
+    }
+  }).withFailureHandler(function(err) {
+    buttonEventEnd(btnEle, "Start Free Trial");
+    btnEle.dataset.disabled = 'false';
+    alert(err);
+  }).createStripeSession();
+}
+
+function pollForSubscription(btnEle, interval = 5000, timeout = paymentProcessingTime * 1000){
+  const startAt = Date.now();
+  // clear any previous poll
+  if (subscriptionPollIntervalId) {
+    clearInterval(subscriptionPollIntervalId);
+    subscriptionPollIntervalId = null;
+  }
+
+  subscriptionPollIntervalId = setInterval(() => {
+    google.script.run.withSuccessHandler(function(response){
+      // if subscription detected -> stop everything and advance
+      if (response && response.success === true && response.subscribed === true){
+        clearInterval(subscriptionPollIntervalId);
+        subscriptionPollIntervalId = null;
+        if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+        try{ nextStep(3); }catch(e){}
+        if (btnEle) { buttonEventEnd(btnEle, "Subscribed"); btnEle.dataset.disabled = 'false'; }
+        return;
+      }
+
+      // not subscribed yet: check for timeout
+      if (Date.now() - startAt >= timeout){
+        clearInterval(subscriptionPollIntervalId);
+        subscriptionPollIntervalId = null;
+        if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+        remainingSeconds = paymentProcessingTime;
+        if (btnEle) { buttonEventEnd(btnEle, "Start Free Trial"); btnEle.dataset.disabled = 'false'; }
+
+        const appNotification = document.querySelector('#subscription-status') || document.querySelector('#app-notification');
+        if (appNotification){
+          appNotification.textContent = '';
+          var div = document.createElement('div');
+          div.className = 'text-red-600 mb-3';
+          div.textContent = 'Subscription not detected yet. Please try again or contact support.';
+          appNotification.appendChild(div);
+          appNotification.classList.remove('hidden');
+        }
+
+        //try{ nextStep(1); }catch(e){}
+        return;
+      }
+      // otherwise continue polling until timeout or success
+    }).withFailureHandler(function(err){
+      // on error, stop polling and show message
+      if (subscriptionPollIntervalId){ clearInterval(subscriptionPollIntervalId); subscriptionPollIntervalId = null; }
+      if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+      if (btnEle) { buttonEventEnd(btnEle, "Try Again"); btnEle.dataset.disabled = 'false'; }
+      const appNotification = document.querySelector('#subscription-status') || document.querySelector('#app-notification');
+      if (appNotification){
+        appNotification.textContent = '';
+        var div = document.createElement('div');
+        div.className = 'text-red-600';
+        div.textContent = 'Error checking subscription. Please try again.';
+        appNotification.appendChild(div);
+        appNotification.classList.remove('hidden');
+      }
+    }).verifySubscriptionStatus();
+  }, interval);
+}
+
+
+function startSubscribeCountdown(btn) {
+  // clear any existing interval first
+  if (typeof countdownInterval !== 'undefined' && countdownInterval) {
+    clearInterval(countdownInterval);
+  }
+  updateButtonText(btn);
+  countdownInterval = setInterval(() => {
+    remainingSeconds--;
+    updateButtonText(btn);
+    if (remainingSeconds <= 0) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+      // countdown ended — show checking state while poll continues
+      if (btn) {
+        const textEl = btn.querySelector && btn.querySelector('.btn-text');
+        if (textEl) textEl.innerText = 'Checking...';
+      }
+    }
+  }, 1000);
+}
+
+function updateButtonText(btn) {
+  if (!btn) return;
+  const textEl = btn.querySelector && btn.querySelector('.btn-text');
+  if (!textEl) return;
+  if (remainingSeconds <= 0) {
+    textEl.innerText = 'Checking...';
+    return;
+  }
+  const min = Math.floor(remainingSeconds / 60);
+  const sec = remainingSeconds % 60;
+  textEl.innerText = `Waiting (${min}:${sec.toString().padStart(2, '0')})`;
+}
+
+
+function nextStep(n){
+  appNotificationEle.textContent = '';
+  document.querySelectorAll('#setup-wizard > .step-card').forEach(div => div.classList.add('hidden'));
+  document.getElementById('step-' + n).classList.remove('hidden');
+  updateStepDots(n);
+}
+
+function updateStepDots(activeStep){
+  var dots = document.querySelectorAll('.step-dot');
+  dots.forEach(function(dot, i){
+    var step = i + 1;
+    dot.classList.remove('active', 'completed');
+    if(step < activeStep) dot.classList.add('completed');
+    else if(step === activeStep) dot.classList.add('active');
+  });
+}
+
+function launchApp(btnEl) {
+  buttonEventStart(btnEl, "Launching..");
+  google.script.run.showSidebar();
+}
+
+function handleStepInstallTemplate(btnEle){
+  const stepEl = btnEle.closest('[id^="step-"]');
+  buttonEventStart(btnEle, "Installing");
+  google.script.run.withSuccessHandler(function(response){
+    if( response.success === true ){
+      btnEle.classList.add('hidden');
+      showStepBlockMessageElement({
+        stepEle: stepEl, 
+        message: response.message, 
+        status: 'success'
+      });
+      showNextStepButtonElement(stepEl, 4);
+    }else{
+      showStepBlockMessageElement({
+        stepEle: stepEl, 
+        message: response.message, 
+        status: 'failed'
+      });
+      buttonEventEnd(btnEle, "Install Template");
+    }
+  }).withFailureHandler(function(error){
+    showStepBlockMessageElement({
+      stepEle: stepEl, 
+      message: error.message, 
+      status: 'failed'
+    });
+    buttonEventEnd(btnEle, "Install Template");
+  }).installTemplateInitialSetup();
+}
+
+function handleStepSaveConfiguration(btnEle){
+  const stepEl = btnEle.closest('[id^="step-"]');
+  if (!stepEl) return;
+  buttonEventStart(btnEle, "Setting up..");
+  google.script.run.withSuccessHandler((response) => {
+    if( response.success === true ){
+      btnEle.classList.add('hidden');
+      showStepBlockMessageElement({
+        stepEle: stepEl,
+        message: response.message,
+        status: 'success'
+      });
+      showNextStepButtonElement(stepEl, 5);
+    }else{
+      showStepBlockMessageElement({
+        stepEle: stepEl,
+        message: response.message,
+        status: 'failed'
+      });
+      buttonEventEnd(btnEle, "Enable & Continue");
+    }
+  }).withFailureHandler((error) => {
+    showStepBlockMessageElement({
+      stepEle: stepEl,
+      message: error.message,
+      status: 'failed'
+    });
+    buttonEventEnd(btnEle, "Enable & Continue");
+  }).saveConfiguration({
+      autoSync: true
+  });
+}
+
+function goToNextStep(btn, nextstep) {
+  const stepEl = btn.closest('[id^="step-"]');
+  const wizardEl = stepEl.closest('#setup-wizard');
+
+  stepEl.classList.add('hidden');
+
+  const nextStepEl = wizardEl.querySelector('#step-'+ nextstep);
+  if (nextStepEl) {
+    nextStepEl.classList.remove('hidden');
+  }
+  updateStepDots(nextstep);
+}
+
+function showStepBlockMessageElement( data ){
+  if( data.status === 'success' ){
+    data.stepEle.querySelector('.step-messages').innerHTML = actionSuccessMessage(data.message);
+    data.stepEle.querySelector('.step-messages').classList.remove("hidden");
+  }else{
+    data.stepEle.querySelector('.step-messages').innerHTML = actionFailureMessage(data.message);
+    data.stepEle.querySelector('.step-messages').classList.remove("hidden");
+  }
+}
+
+function showNextStepButtonElement( stepEle, nextStep ){
+  if (stepEle.querySelector('.next-step-btn')) return;
+  const nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.innerText = 'Next';
+  nextBtn.className = 'next-step-btn cursor-pointer w-full theme-bg-primary text-white py-2 rounded mt-4';
+  nextBtn.onclick = function () {
+    goToNextStep(nextBtn, nextStep);
+  };
+  stepEle.appendChild(nextBtn);
+}
+</script>
