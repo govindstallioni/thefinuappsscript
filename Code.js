@@ -2354,6 +2354,5 @@ function updatePlaidWebhook() {
     }
 
     return responseBody;
-  }
-  
+  }  
 }
