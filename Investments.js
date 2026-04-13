@@ -50,32 +50,38 @@ function formatPlaidInvestments(account_id, investments){
   var PlaidAccountsSecurities = Array.isArray(investments.securities) ? investments.securities : [];
   if(PlaidAccountsHoldings.length === 0 || PlaidAccountsSecurities.length === 0) return collectionArr;
 
-  var account_name = '';
-
-  for( var i = 0; i < PlaidAccountsHoldings.length; i++ ){
-    let holding = PlaidAccountsHoldings[i] || {};
-    let account = PlaidAccounts[0] || {};
-    for ( var j = 0; j < PlaidAccountsSecurities.length; j++ ){
-      let securities = PlaidAccountsSecurities[j] || {};
-      if( holding && holding.security_id && securities && holding.security_id === securities.security_id ){
-        account_name = getPlaidAccountNameByAccountId(account_id) || '';
-        collectionArr.push({
-          'security_id': holding.security_id || '',
-          'account_id' : holding.account_id || '',
-          'account': account_name,
-          'account_number': account.mask || '',
-          'cusip': securities.cusip || '',
-          'ticker': securities.ticker_symbol || securities.ticker || '',
-          'account_name': securities.name || '',
-          'quantity': holding.quantity || 0,
-          'cost_basis': holding.cost_basis || 0,
-          'price_as_of': holding.institution_price_as_of || '',
-          'price': holding.institution_price || 0,
-          'value': holding.institution_value || 0,
-          'type': securities.type || ''
-        });
-      }
+  // Build a security_id → security lookup map to avoid nested loop
+  var securityMap = {};
+  PlaidAccountsSecurities.forEach(function(sec) {
+    if (sec && sec.security_id) {
+      securityMap[sec.security_id] = sec;
     }
+  });
+
+  // Fetch account name once (not per holding)
+  var account_name = getPlaidAccountNameByAccountId(account_id) || '';
+  var account = PlaidAccounts[0] || {};
+
+  for (var i = 0; i < PlaidAccountsHoldings.length; i++) {
+    var holding = PlaidAccountsHoldings[i] || {};
+    var securities = securityMap[holding.security_id];
+    if (!holding.security_id || !securities) continue;
+
+    collectionArr.push({
+      'security_id': holding.security_id || '',
+      'account_id': account_id,
+      'account': account_name,
+      'account_number': account.mask || '',
+      'cusip': securities.cusip || '',
+      'ticker': securities.ticker_symbol || securities.ticker || '',
+      'account_name': securities.name || '',
+      'quantity': holding.quantity || 0,
+      'cost_basis': holding.cost_basis || 0,
+      'price_as_of': holding.institution_price_as_of || '',
+      'price': holding.institution_price || 0,
+      'value': holding.institution_value || 0,
+      'type': securities.type || ''
+    });
   }
 
   return collectionArr;
