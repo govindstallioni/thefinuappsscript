@@ -1138,7 +1138,7 @@ function runThefinUPlaidAutoSync(){
           }
           var account_id = account.account_id;
           Logger.log('[AUTO-SYNC] Syncing account: ' + account_id + ' (is_update: ' + account.is_update + ')');
-          // Transactions and investments only sync when is_update is true
+          // Transactions only sync when is_update is true
           if (account.is_update === true) {
             try {
               updateTransactionSheet(account_id);
@@ -1147,20 +1147,21 @@ function runThefinUPlaidAutoSync(){
               Logger.log('[AUTO-SYNC] Transaction sync FAILED for ' + account_id + ': ' + txErr.message);
               failedAccounts.push(account_id + ' (transactions)');
             }
-            try {
-              var support_response = checkItemProductSupport(account_id, 'investments');
-              if (support_response === true) {
-                updateInvestmentSheet(account_id);
-                Logger.log('[AUTO-SYNC] Investments synced for: ' + account_id);
-              }
-            } catch (invErr) {
-              Logger.log('[AUTO-SYNC] Investment sync FAILED for ' + account_id + ': ' + invErr.message);
-              failedAccounts.push(account_id + ' (investments)');
-            }
-            // Reset the is_update flag after syncing transactions/investments
+            // Reset the is_update flag after syncing transactions
             updateAppAccountDetailById(account_id, { is_update: false });
           } else {
-            Logger.log('[AUTO-SYNC] Skipped transactions/investments for ' + account_id + ' (is_update: false)');
+            Logger.log('[AUTO-SYNC] Skipped transactions for ' + account_id + ' (is_update: false)');
+          }
+          // Investments always sync for linked + active accounts
+          try {
+            var support_response = checkItemProductSupport(account_id, 'investments');
+            if (support_response === true) {
+              updateInvestmentSheet(account_id);
+              Logger.log('[AUTO-SYNC] Investments synced for: ' + account_id);
+            }
+          } catch (invErr) {
+            Logger.log('[AUTO-SYNC] Investment sync FAILED for ' + account_id + ': ' + invErr.message);
+            failedAccounts.push(account_id + ' (investments)');
           }
           // Balance history always syncs for linked + active accounts
           try {
