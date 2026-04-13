@@ -15,7 +15,7 @@ function linkInvestmentsSheetData( investmentsData ){
         investment.account, //Account
         investment.security_id, //Security ID
         investment.account_id, //Account ID
-        getPlaidInvestmentsData()
+        getTodayDateTime() //Date & Time
       ]);
     });
   }

@@ -1138,23 +1138,31 @@ function runThefinUPlaidAutoSync(){
           }
           var account_id = account.account_id;
           Logger.log('[AUTO-SYNC] Syncing account: ' + account_id + ' (is_update: ' + account.is_update + ')');
-          try {
-            updateTransactionSheet(account_id);
-            Logger.log('[AUTO-SYNC] Transactions synced for: ' + account_id);
-          } catch (txErr) {
-            Logger.log('[AUTO-SYNC] Transaction sync FAILED for ' + account_id + ': ' + txErr.message);
-            failedAccounts.push(account_id + ' (transactions)');
-          }
-          try {
-            var support_response = checkItemProductSupport(account_id, 'investments');
-            if (support_response === true) {
-              updateInvestmentSheet(account_id);
-              Logger.log('[AUTO-SYNC] Investments synced for: ' + account_id);
+          // Transactions and investments only sync when is_update is true
+          if (account.is_update === true) {
+            try {
+              updateTransactionSheet(account_id);
+              Logger.log('[AUTO-SYNC] Transactions synced for: ' + account_id);
+            } catch (txErr) {
+              Logger.log('[AUTO-SYNC] Transaction sync FAILED for ' + account_id + ': ' + txErr.message);
+              failedAccounts.push(account_id + ' (transactions)');
             }
-          } catch (invErr) {
-            Logger.log('[AUTO-SYNC] Investment sync FAILED for ' + account_id + ': ' + invErr.message);
-            failedAccounts.push(account_id + ' (investments)');
+            try {
+              var support_response = checkItemProductSupport(account_id, 'investments');
+              if (support_response === true) {
+                updateInvestmentSheet(account_id);
+                Logger.log('[AUTO-SYNC] Investments synced for: ' + account_id);
+              }
+            } catch (invErr) {
+              Logger.log('[AUTO-SYNC] Investment sync FAILED for ' + account_id + ': ' + invErr.message);
+              failedAccounts.push(account_id + ' (investments)');
+            }
+            // Reset the is_update flag after syncing transactions/investments
+            updateAppAccountDetailById(account_id, { is_update: false });
+          } else {
+            Logger.log('[AUTO-SYNC] Skipped transactions/investments for ' + account_id + ' (is_update: false)');
           }
+          // Balance history always syncs for linked + active accounts
           try {
             updateAccountBalanceHistory(account_id);
             Logger.log('[AUTO-SYNC] Balance history synced for: ' + account_id);
@@ -1162,8 +1170,6 @@ function runThefinUPlaidAutoSync(){
             Logger.log('[AUTO-SYNC] Balance sync FAILED for ' + account_id + ': ' + balErr.message);
             failedAccounts.push(account_id + ' (balance)');
           }
-          // Reset the is_update flag
-          updateAppAccountDetailById(account_id, { is_update: false });
           syncedCount++;
           Logger.log('[AUTO-SYNC] Account ' + account_id + ' completed (' + syncedCount + '/' + accounts.length + ')');
         }
@@ -2271,6 +2277,7 @@ function insertInvestmentBatchSafe(invObjects){
         else if(key.indexOf('account') !== -1 && key.indexOf('id') === -1) v = inv.account || '';
         else if(key.indexOf('security') !== -1 && key.indexOf('id') !== -1) v = securityId;
         else if(key.indexOf('account id') !== -1 || key === 'account id') v = inv.account_id || '';
+        else if(key.indexOf('date') !== -1 && key.indexOf('time') !== -1) v = getTodayDateTime();
         else v = '';
         rowArr.push(v);
       }
