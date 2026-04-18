@@ -174,6 +174,8 @@ function getPlaidItem(access_token){
 
 
 function plaidRequest(url, payload) {
+  var responseJson = { error: true, error_message: 'Unknown error' };
+  var success = false;
   try {
     const res = UrlFetchApp.fetch(url, {
       method: 'post',
@@ -185,12 +187,63 @@ function plaidRequest(url, payload) {
     if (res.getResponseCode() !== 200) {
       Logger.log('Plaid API error: ' + JSON.stringify(json));
       handlePlaidError(json.error_type, json.error_code, json.error_message);
-      return { error: true, error_type: json.error_type, error_code: json.error_code, error_message: json.error_message };
+      responseJson = { error: true, error_type: json.error_type, error_code: json.error_code, error_message: json.error_message };
+    } else {
+      success = true;
+      responseJson = json;
     }
-    return json;
   } catch (e) {
     Logger.log('plaidRequest exception: ' + e.toString());
-    return { error: true, error_message: e.toString() };
+    responseJson = { error: true, error_message: e.toString() };
+  }
+  logPlaidApiUsage_(url, getPlaidEndpointType_(url), success);
+  return responseJson;
+}
+
+/**
+ * Derives a readable endpoint_type from a Plaid URL path.
+ * e.g. "https://sandbox.plaid.com/transactions/sync" → "transactions_sync"
+ */
+function getPlaidEndpointType_(url) {
+  try {
+    var path = url.replace(/^https?:\/\/[^\/]+/, ''); // strip scheme + host
+    path = path.replace(/^\/+/, '').replace(/\/+$/, ''); // strip leading/trailing slashes
+    return path.replace(/\//g, '_');
+  } catch (e) {
+    return 'unknown';
+  }
+}
+
+/**
+ * Fires a non-blocking usage log to the backend.
+ * Failures are silently swallowed so they never interrupt the Plaid flow.
+ */
+function logPlaidApiUsage_(plaidUrl, billingType, status) {
+  try {
+    var email = '';
+    try { email = UserEmail || ''; } catch(e) {}
+    if (!email) {
+      try { email = PropertiesService.getUserProperties().getProperty('USER_EMAIL') || ''; } catch(e) {}
+    }
+
+    var payload = {
+      email: email,
+      billing: billingType,
+      endpoint: plaidUrl,
+      status: status,
+      timestamp: new Date().toISOString()
+    };
+
+    UrlFetchApp.fetch(API_ENDPOINT + 'api/plaid/usage/log', {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+      headers: getAuthHeaders()
+    });
+    
+  } catch (e) {
+    Logger.log('[USAGE-LOG] Failed to log Plaid API usage: ' + e.toString());
   }
 }
 
