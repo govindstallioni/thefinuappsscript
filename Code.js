@@ -1288,6 +1288,35 @@ function removeAccountFromList(accountId) {
     if (result == SpreadsheetApp.getUi().Button.YES) {
       const response = updateAppAccountDetailById(accountId,{status: false});
       if( response.success === true ){
+
+        try {
+          // Step 1: Get item_id and access_token for this account
+          var accountData = getAppPlaidAccountById(accountId);
+          if (accountData.success === true && accountData.result.item_id) {
+            var itemId = accountData.result.item_id;
+            var accessToken = accountData.result.access_token;
+
+            // Step 2: Get all accounts that belong to this item_id
+            var itemAccountsResp = getAppAccountsByItemId(itemId);
+            if (itemAccountsResp.success === true && Array.isArray(itemAccountsResp.result)) {
+
+              // Step 3: Check if every account under this item has status === false
+              var allInactive = itemAccountsResp.result.length > 0 &&
+                itemAccountsResp.result.every(function(acc) { return acc.status === false; });
+
+              if (allInactive) {
+                // Step 4: All accounts inactive — remove the Plaid item entirely
+                Logger.log('[REMOVE-ACCOUNT] All accounts for item ' + itemId + ' are inactive. Removing Plaid item.');
+                removePlaidItem(accessToken);
+              } else {
+                Logger.log('[REMOVE-ACCOUNT] Other active accounts exist for item ' + itemId + '. Skipping item/remove.');
+              }
+            }
+          }
+        } catch (cleanupErr) {
+          Logger.log('[REMOVE-ACCOUNT] Item cleanup error: ' + cleanupErr.toString());
+        }
+
         return {
           success: true,
           message: 'Account removed'
@@ -2364,4 +2393,64 @@ function updatePlaidWebhook() {
     return responseBody;
   }
   
+}
+
+/* Get unused plaid tokens plaidAllTokens with plaidActiveTokens */
+function getUnusedPlaidTokens() {
+  var allTokens = plaidAllTokens || [];
+  var activeTokens = activePlaidTokens || [];
+
+  // Build a Set of active access_token strings for O(1) lookup
+  var activeSet = {};
+  activeTokens.forEach(function(t) {
+    if (t.access_token) activeSet[t.access_token] = true;
+  });
+
+  Logger.log('Plaid Total tokens: ' + allTokens.length + ', Active tokens: ' + activeTokens.length);
+
+  // Collect unique unused tokens (multiple accounts can share one access_token)
+  var seen = {};
+  var result = [];
+  allTokens.forEach(function(token) {
+    if (token.access_token && !activeSet[token.access_token] && !seen[token.access_token]) {
+      seen[token.access_token] = true;
+      result.push({
+        access_token: token.access_token,
+        item_id: token.item_id
+      });
+    }
+  });
+
+  Logger.log('Unused Plaid Tokens found: ' + result.length);
+
+  return result;
+}
+
+function test() {
+  try {
+    let unusedTokens = getUnusedPlaidTokens();
+    /* remove duplicate access_token entries */
+    unusedTokens = unusedTokens.filter((token, index, self) => index === self.findIndex((t) => t.access_token === token.access_token));
+
+    let result = [];
+    const appSettingsData = getAppSettings();
+    if( appSettingsData.success === true ){
+      const plaidItemEndpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/item/remove';
+      // Remove the unused tokens from Plaid and log the results
+      unusedTokens.forEach(function(token) {
+        let payload = {
+          client_id: appSettingsData.result.plaidClientKey,
+          secret: appSettingsData.result.plaidSecretKey,
+          access_token: token.access_token
+        };
+      
+        let response = plaidRequest(plaidItemEndpoint, payload);
+        
+        result.push(response);
+      });
+    }
+    Logger.log('Test result: ' + JSON.stringify(result, null, 2));
+  }catch(e){
+    Logger.log('Test error: ' + e.toString());
+  }
 }

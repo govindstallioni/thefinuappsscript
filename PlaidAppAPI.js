@@ -247,6 +247,17 @@ function logPlaidApiUsage_(plaidUrl, billingType, status) {
   }
 }
 
+function removePlaidItem(access_token) {
+  const appSettingsData = getAppSettings();
+  if (appSettingsData.success !== true) return { error: true, error_message: 'Settings lookup failed' };
+  const endpoint = 'https://' + appSettingsData.result.plaidEnvironment + '.plaid.com/item/remove';
+  return plaidRequest(endpoint, {
+    client_id: appSettingsData.result.plaidClientKey,
+    secret: appSettingsData.result.plaidSecretKey,
+    access_token: access_token
+  });
+}
+
 function handlePlaidError(error_type, error_code, error_message) {
   Logger.log('Plaid ' + (error_type || 'UNKNOWN') + ' [' + (error_code || '') + ']: ' + (error_message || ''));
   try {

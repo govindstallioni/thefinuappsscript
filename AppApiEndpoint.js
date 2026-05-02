@@ -188,6 +188,25 @@ function getAppPlaidAccountById( accountId ){
   }
 }
 
+function getAppAccountsByItemId( itemId ){
+  try {
+    const apiUrl = API_ENDPOINT + 'api/accounts/get-by-item-id/' + itemId;
+    const options = {
+      method: 'get',
+      headers: getAuthHeaders(),
+      muteHttpExceptions: true
+    };
+    const response = UrlFetchApp.fetch(apiUrl, options);
+    const result = JSON.parse(response.getContentText());
+    return {
+      success: response.getResponseCode() === 200,
+      result
+    };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
 function updateAppAccountDetailById( accountId, data ){
 
   try {
