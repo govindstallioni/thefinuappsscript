@@ -14,8 +14,8 @@
     "https://script.googleapis.com/",
     "https://production.plaid.com/",
     "https://sandbox.plaid.com/",
-    "https://thefinuportal-backend-1014598876589.europe-west1.run.app/",
-    "https://thefinuportal-1014598876589.us-west2.run.app/",
+    "https://gcapi.thefinu.com/",
+    "https://thefinu.com/",
     "https://api.stripe.com/v1/checkout/sessions"
   ]
 }

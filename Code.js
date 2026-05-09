@@ -1,4 +1,4 @@
-const API_ENDPOINT = 'https://thefinuportal-backend-1014598876589.europe-west1.run.app/';
+const API_ENDPOINT = 'https://gcapi.thefinu.com/';
 
 var UserEmail = '';
 var UserSpreadsheet = null;
@@ -1058,6 +1058,26 @@ function getConnectedPlaidAccountsTemplate(){
   }
 }
 
+function getRemoveAccountsTemplate(){
+  const response = getAppPlaidConnectedAccounts();
+  if( response.success === true ){
+    // Group accounts by institution_name
+    var groups = {};
+    (response.result || []).forEach(function(account){
+      var key = account.institution_name || 'Other';
+      if( !groups[key] ) groups[key] = { institution_name: key, accounts: [] };
+      groups[key].accounts.push(account);
+    });
+    var template = HtmlService.createTemplateFromFile('RemoveAccountsCard');
+    template.groupedAccounts = Object.values(groups);
+    return template.evaluate().getContent();
+  }else{
+    var template = HtmlService.createTemplateFromFile('Error');
+    template.message = "No data available right now, please try again!";
+    return template.evaluate().getContent();
+  }
+}
+
 function getAccountDetailsTemplate( accountId ){
   const response = getAppPlaidAccountById(accountId);
   if( response.success === true ){
@@ -1288,6 +1308,12 @@ function removeAccountFromList(accountId) {
     if (result == SpreadsheetApp.getUi().Button.YES) {
       const response = updateAppAccountDetailById(accountId,{status: false});
       if( response.success === true ){
+
+        // Clear all sheet data for this account
+        try { clearTransactionsData(accountId); } catch(e) { Logger.log('[REMOVE-ACCOUNT] clearTransactionsData error: ' + e.toString()); }
+        try { clearInvestmentsData(accountId); } catch(e) { Logger.log('[REMOVE-ACCOUNT] clearInvestmentsData error: ' + e.toString()); }
+        try { clearAccountData(accountId); } catch(e) { Logger.log('[REMOVE-ACCOUNT] clearAccountData error: ' + e.toString()); }
+        try { clearBalanceHistoryData(accountId); } catch(e) { Logger.log('[REMOVE-ACCOUNT] clearBalanceHistoryData error: ' + e.toString()); }
 
         try {
           // Step 1: Get item_id and access_token for this account

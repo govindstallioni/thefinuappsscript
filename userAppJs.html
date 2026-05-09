@@ -39,6 +39,7 @@ function loadConnectedAccounts() {
   const accountDetailElement = tabAccountsEle.querySelector('#account-detail');
   const renameAccountElement = tabAccountsEle.querySelector('#rename-account');
   const balanceHistoryElement = tabAccountsEle.querySelector('#balance-history');
+  const removeAccountsElement = tabAccountsEle.querySelector('#remove-accounts');
   const loaderElement = tabAccountsEle.querySelector('.tab-loader');
 
   // Reset UI
@@ -47,6 +48,7 @@ function loadConnectedAccounts() {
   accountDetailElement.classList.add('hidden');
   renameAccountElement.classList.add('hidden');
   balanceHistoryElement.classList.add('hidden');
+  if (removeAccountsElement) { removeAccountsElement.classList.add('hidden'); removeAccountsElement.textContent = ''; }
   accountListElement.textContent = '';
   accountDetailElement.textContent = '';
   renameAccountElement.textContent = '';
@@ -256,6 +258,46 @@ function removeAccount(account_id) {
     }).withFailureHandler(err => {
       showMessage((err.message || "Unknown error"), 'error');
     }).removeAccountFromList(account_id);
+}
+
+function handleRemoveAccounts(btnEle) {
+  var tabAccountsEle = btnEle.closest('#tab-accounts');
+  var accountListElement = tabAccountsEle.querySelector('#connected-account-list');
+  var accountDetailElement = tabAccountsEle.querySelector('#account-detail');
+  var renameAccountElement = tabAccountsEle.querySelector('#rename-account');
+  var balanceHistoryElement = tabAccountsEle.querySelector('#balance-history');
+  var removeAccountsElement = tabAccountsEle.querySelector('#remove-accounts');
+  var loaderElement = tabAccountsEle.querySelector('.tab-loader');
+
+  loaderElement.classList.remove('hidden');
+  accountListElement.classList.add('hidden');
+  accountDetailElement.classList.add('hidden');
+  renameAccountElement.classList.add('hidden');
+  balanceHistoryElement.classList.add('hidden');
+  removeAccountsElement.classList.add('hidden');
+  removeAccountsElement.textContent = '';
+
+  google.script.run.withSuccessHandler(function(response) {
+    removeAccountsElement.innerHTML = response;
+    removeAccountsElement.querySelectorAll('.btn-remove-account').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        removeAccount(this.dataset.accountId);
+      });
+    });
+    removeAccountsElement.classList.remove('hidden');
+    loaderElement.classList.add('hidden');
+  }).withFailureHandler(function(err) {
+    var p = document.createElement('p');
+    p.className = 'text-red-600 py-8 text-center';
+    p.textContent = 'Something went wrong. ' + (err.message || '');
+    removeAccountsElement.appendChild(p);
+    removeAccountsElement.classList.remove('hidden');
+    loaderElement.classList.add('hidden');
+  }).getRemoveAccountsTemplate();
+}
+
+function goBackFromRemoveAccounts() {
+  loadConnectedAccounts();
 }
 
 function linkAccountToTemplate(accountId, btnEl) {
